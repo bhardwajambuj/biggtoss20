@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Bigg Toss · Slap your way through the Season 20 house</title>
+<meta name="description" content="A tiny multiplayer parody of the Season 20 house. Pick a housemate, roam the Wonderland house, sit on the teapot throne and slap everyone for TRP.">
+<meta property="og:title" content="Bigg Toss · the Season 20 house, but everyone can slap everyone">
+<meta property="og:description" content="Pick a housemate. Two lives. One teapot throne. Unlimited thappad. Play free in your browser.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#150c22">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23150c22'/%3E%3Cpath d='M6 32Q32 8 58 32Q32 56 6 32Z' fill='%23fff8ea' stroke='%23f5c542' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='13' fill='%238a4fd0'/%3E%3Ccircle cx='32' cy='32' r='7' fill='%23f5c542'/%3E%3Ccircle cx='32' cy='32' r='3.5' fill='%23150c22'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Bangers&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game" aria-label="Bigg Toss game"></canvas>
+
+<section id="select">
+  <header>
+    <canvas id="logoEye" width="220" height="120"></canvas>
+    <h1>BIGG <span>TOSS</span></h1>
+    <p class="season">SEASON <b>20</b></p>
+    <p class="sub">Two lives. One teapot throne. Unlimited <b>thappad</b>.</p>
+    <p id="live" class="live" hidden></p>
+  </header>
+  <div id="cards" role="listbox" aria-label="Choose your housemate"></div>
+  <footer class="join">
+    <div id="picked"><b>Pick your housemate</b><span>Everyone else is played by the house until a friend joins.</span></div>
+    <input id="nick" maxlength="14" placeholder="Your name (optional)" autocomplete="off" spellcheck="false">
+    <button id="enter" disabled>ENTER THE HOUSE</button>
+    <button id="back">BACK</button>
+  </footer>
+  <p class="fine">Unofficial fan-made parody. Not affiliated with, endorsed by or connected to the show, its makers, broadcasters or anyone depicted. Cartoon slapstick only.
+    <a href="#" id="private">Start a private house</a></p>
+</section>
+
+<div id="hud" hidden>
+  <div id="chip">
+    <canvas id="chipFace" width="112" height="112"></canvas>
+    <div>
+      <b id="chipName"></b>
+      <div class="vitals"><span id="lives"></span><span id="hp"></span></div>
+      <div class="trp"><i>TRP</i><span id="trp">0</span></div>
+    </div>
+  </div>
+  <div id="ticker"><canvas id="tickEye" width="88" height="56"></canvas><span></span></div>
+  <aside id="side">
+    <div id="board"></div>
+    <div id="actions">
+      <button id="bInvite" title="Copy invite link">Invite</button>
+      <button id="bShare" title="Share your score card">Share</button>
+      <button id="bSwitch" title="Switch housemate (C)">Switch</button>
+      <button id="bMute" title="Sound (M)">Sound on</button>
+    </div>
+    <canvas id="minimap" width="352" height="240"></canvas>
+  </aside>
+  <div id="roomtag"></div>
+  <div id="flash"></div>
+  <div id="prompt"></div>
+  <div id="quips"></div>
+  <div id="hint"><kbd>WASD</kbd> move <kbd>Space</kbd> jump <kbd>F</kbd> slap <kbd>E</kbd> sit <kbd>C</kbd> switch</div>
+  <div id="touch">
+    <div id="stick"><i></i></div>
+    <div id="pad">
+      <button id="tSay">BOL</button>
+      <button id="tSit">SIT</button>
+      <button id="tJump">JUMP</button>
+      <button id="tSlap">SLAP</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<div id="curtain"><div class="spin"></div><p>Opening the house…</p></div>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

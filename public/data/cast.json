@@ -1,0 +1,189 @@
+{
+  "generic": [
+    "Bigg Boss chahte hain...",
+    "Footage mat kha!",
+    "Mudda kya hai?",
+    "Tathas-two!",
+    "Chai milegi kya?",
+    "Nominate kar dunga!",
+    "Camera idhar hai, idhar!",
+    "Ye game hai, samjho!",
+    "Mere se panga mat lena!",
+    "Weekend Ka Vaar pe dekh lenge!"
+  ],
+  "ouch": ["Aaah!", "Bigg Boss!!", "Ye kya tha?!", "Oye!", "Thappad?!", "Mummy!", "Violence! Violence!", "Abey!"],
+  "cast": [
+    {
+      "id": "kanika", "name": "Kanika Mann", "short": "Kanika",
+      "tag": "Guddan of the house. Khatron ki khiladi.",
+      "skin": "#f6d3b3", "h": 0.97, "w": 0.92, "fem": 1,
+      "hair": {"back": "wavy", "front": "center", "c": "#8a5a2b", "hl": "#d3a15c"},
+      "outfit": {"k": "dress", "c1": "#ff5fa2", "c2": "#ff8fc0", "c3": "#ffffff"},
+      "acc": ["hoops"],
+      "quips": ["Tumse na ho payega!", "Stunt karke dikhaun?"]
+    },
+    {
+      "id": "aasif", "name": "Aasif Khan", "short": "Aasif",
+      "tag": "Panchayat ka dulha. Gajab bezzati specialist.",
+      "skin": "#d9a273", "h": 0.98, "w": 1.16,
+      "hair": {"front": "short", "c": "#1d1512"},
+      "beard": "moustache-stubble",
+      "outfit": {"k": "kurta", "c1": "#f3e3c0", "c2": "#f7f0e0", "c3": "#5a3a22", "vest": "#8c2f39"},
+      "acc": [],
+      "quips": ["Gajab bezzati hai yaar!", "Debate with Aasif, shuru!"]
+    },
+    {
+      "id": "qazi", "name": "Qazi Touqeer", "short": "Qazi",
+      "tag": "Fame Gurukul winner. Rockstar, baby.",
+      "skin": "#f1cba6", "h": 1.0, "w": 0.98,
+      "hair": {"back": "curly", "front": "curlytop", "c": "#2a1c14"},
+      "beard": "stubble",
+      "outfit": {"k": "jacket", "c1": "#1f1f26", "c2": "#22283a", "c3": "#111111", "c4": "#f5f5f5"},
+      "acc": ["chain"],
+      "quips": ["I'm a Rockstar baby, aau!", "Ek gaana ho jaye?"]
+    },
+    {
+      "id": "isha", "name": "Isha Rikhi", "short": "Isha",
+      "tag": "Punjabi film star. Shanti doot of the house.",
+      "skin": "#f4cfae", "h": 0.97, "w": 0.92, "fem": 1,
+      "hair": {"back": "long", "front": "center", "c": "#1a1210"},
+      "outfit": {"k": "suit", "c1": "#16a6a0", "c2": "#0f7f7b", "c3": "#ff6fa8"},
+      "acc": ["jhumka"],
+      "quips": ["Ye thappad wali baat galat hai!", "Chak de phatte!"]
+    },
+    {
+      "id": "amrapali", "name": "Aamrapali Dubey", "short": "Aamrapali",
+      "tag": "Bhojpuri superstar. Kitchen ki rani.",
+      "skin": "#e2ae82", "h": 0.97, "w": 0.96, "fem": 1,
+      "hair": {"back": "long", "front": "center", "c": "#120c0a"},
+      "outfit": {"k": "saree", "c1": "#d81e3f", "c2": "#f5c542", "c3": "#8a1029"},
+      "acc": ["bindi", "jhumka"],
+      "quips": ["Tumhara level hi nahi hai!", "Daal ban gayi, aa jao!"]
+    },
+    {
+      "id": "rohed", "name": "Rohed Khan", "short": "Rohed",
+      "tag": "Model + martial artist. Dil se Hindustani.",
+      "skin": "#ecc39e", "h": 1.07, "w": 1.18,
+      "hair": {"front": "slick", "c": "#17110e"},
+      "beard": "beard",
+      "outfit": {"k": "tank", "c1": "#22252b", "c2": "#3d4636", "c3": "#111111"},
+      "acc": [],
+      "quips": ["Dil se Hindustani hoon!", "Ek kick mein khatam!"]
+    },
+    {
+      "id": "mary", "name": "Mary Kom", "short": "Mary",
+      "tag": "Six-time world champion. Do NOT slap first.",
+      "skin": "#dfae84", "h": 0.92, "w": 0.96, "fem": 1,
+      "hair": {"back": "pony", "front": "short", "c": "#15100d"},
+      "outfit": {"k": "track", "c1": "#1456c8", "c2": "#1456c8", "c3": "#ffffff"},
+      "acc": ["gloves"],
+      "punch": 1,
+      "quips": ["Ek punch, khel khatam!", "Workout time. Ladai baad mein."]
+    },
+    {
+      "id": "scout", "name": "ScoutOP", "short": "Scout",
+      "tag": "Esports icon. Calls everyone a noob.",
+      "skin": "#d9a678", "h": 1.0, "w": 1.04,
+      "hair": {"front": "buzz", "c": "#1a1411"},
+      "beard": "beard",
+      "outfit": {"k": "hoodie", "c1": "#6b3fd6", "c2": "#23232b", "c3": "#f2f2f2"},
+      "acc": ["headset"],
+      "quips": ["GG. Noob lobby!", "Kahawat hai, bhai."]
+    },
+    {
+      "id": "yung", "name": "Yung DSA", "short": "Yung",
+      "tag": "Yerwada se seedha. First captain of BB20.",
+      "skin": "#c98f63", "h": 0.97, "w": 0.88,
+      "hair": {"front": "short", "c": "#0f0c0b"},
+      "beard": "goatee",
+      "outfit": {"k": "tee", "c1": "#f4f4f4", "c2": "#3b5b8c", "c3": "#e23b3b", "baggy": 1},
+      "acc": ["capback", "chain"],
+      "quips": ["Yeda Yung, samjha kya!", "Kaun nek, kaun fake?"]
+    },
+    {
+      "id": "arishfa", "name": "Arishfa Khan", "short": "Arishfa",
+      "tag": "29M followers. Farshi salwar trendsetter.",
+      "skin": "#f7d6b8", "h": 0.93, "w": 0.9, "fem": 1,
+      "hair": {"back": "long", "front": "part", "c": "#3a2416", "hl": "#7a5230"},
+      "outfit": {"k": "suit", "c1": "#2fae5f", "c2": "#2fae5f", "c3": "#8a4fd0"},
+      "acc": ["jhumka"],
+      "quips": ["Iss pe toh reel banti hai!", "Camera on hai na?"]
+    },
+    {
+      "id": "gullu", "name": "Gullu", "short": "Gullu",
+      "tag": "Kushal Tanwar. Roadies + Splitsvilla champ.",
+      "skin": "#d7a274", "h": 1.02, "w": 1.06,
+      "hair": {"back": "mullet", "front": "flow", "c": "#17110e"},
+      "beard": "stubble",
+      "outfit": {"k": "hoodie", "c1": "#ff7a1a", "c2": "#2a2d35", "c3": "#ffffff"},
+      "acc": [],
+      "quips": ["Gullu Boxer naam hai!", "Captain main hi banunga!"]
+    },
+    {
+      "id": "aman", "name": "Aman Gandhi", "short": "Aman",
+      "tag": "Daily soap hero. Always camera ready.",
+      "skin": "#eec5a0", "h": 1.02, "w": 1.0,
+      "hair": {"front": "part", "c": "#1b1410"},
+      "beard": "stubble",
+      "outfit": {"k": "shirt", "c1": "#6fb7ff", "c2": "#c9b28a", "c3": "#5a3a22"},
+      "acc": [],
+      "quips": ["Kundali mein yahi likha tha.", "Dhum tana na na..."]
+    },
+    {
+      "id": "uditi", "name": "Uditi Singh", "short": "Uditi",
+      "tag": "Model. Best dressed, obviously.",
+      "skin": "#f4d0b0", "h": 1.0, "w": 0.9, "fem": 1,
+      "hair": {"back": "wavy", "front": "part", "c": "#2b1a12"},
+      "outfit": {"k": "suit", "c1": "#ffc928", "c2": "#ffc928", "c3": "#ff5fa2", "dots": "#ff5fa2"},
+      "acc": ["shadestop", "hoops"],
+      "quips": ["Best dressed. Obviously.", "Captain ka order hai!"]
+    },
+    {
+      "id": "rhiti", "name": "Rhiti Tiwari", "short": "Rhiti",
+      "tag": "Musician. Desh ki agli rockstar.",
+      "skin": "#e0ad82", "h": 0.96, "w": 0.96, "fem": 1,
+      "hair": {"back": "long", "front": "bangs", "c": "#16100e", "hl": "#9b4fe0"},
+      "outfit": {"k": "jacket", "c1": "#4a78c8", "c2": "#1c1c22", "c3": "#111111", "c4": "#1c1c22"},
+      "acc": ["guitar"],
+      "quips": ["Desh ki rockstar banungi!", "Diss track ready hai!"]
+    },
+    {
+      "id": "love", "name": "Love Gill", "short": "Love",
+      "tag": "Punjabi kudi. Fans ka faisla.",
+      "skin": "#f5d2b2", "h": 0.96, "w": 0.94, "fem": 1,
+      "hair": {"back": "long", "front": "center", "c": "#24160f"},
+      "outfit": {"k": "suit", "c1": "#8a1f3d", "c2": "#17151a", "c3": "#8a1f3d", "dots": "#ffffff", "nodupatta": 1},
+      "acc": ["bow"],
+      "quips": ["Bakwaas mat kar!", "Tu BT mein chala jaega!"]
+    },
+    {
+      "id": "mahhi", "name": "Mahhi Vij", "short": "Mahhi",
+      "tag": "TV queen. Fearless and filter-less.",
+      "skin": "#f6d4b6", "h": 0.97, "w": 0.92, "fem": 1,
+      "hair": {"back": "wavy", "front": "part", "c": "#5a3820", "hl": "#b98450"},
+      "outfit": {"k": "dress", "c1": "#f4f0ff", "c2": "#b79cf5", "c3": "#b79cf5"},
+      "acc": ["hoops"],
+      "quips": ["You don't exist for me.", "Mujhse ucchi awaaz mein nahi!"]
+    },
+    {
+      "id": "manish", "name": "Manish Goel", "short": "Manish",
+      "tag": "Wildcard. TV veteran. \"I don't, Professor.\"",
+      "skin": "#ecc5a2", "h": 1.02, "w": 1.04,
+      "hair": {"front": "part", "c": "#6f6f78", "hl": "#c9c9d2"},
+      "beard": "beard", "beardc": "#8b8b95",
+      "outfit": {"k": "blazer", "c1": "#1e2c4f", "c2": "#2a2f3a", "c3": "#111111", "c4": "#ffffff"},
+      "acc": ["glasses"],
+      "quips": ["I don't, Professor.", "Humare zamane mein..."]
+    },
+    {
+      "id": "nakul", "name": "Nakul Dhull", "short": "Mitthu Don",
+      "tag": "Wildcard. 6'3\" of Haryanvi sarcasm.",
+      "skin": "#d5a073", "h": 1.12, "w": 1.2,
+      "hair": {"front": "fade", "c": "#120e0c"},
+      "beard": "beard",
+      "outfit": {"k": "tee", "c1": "#1f9d55", "c2": "#2a2d35", "c3": "#ffffff"},
+      "acc": ["shades"],
+      "quips": ["Juice pila do mosambi ka!", "Mitthu Don naam hai!"]
+    }
+  ]
+}
