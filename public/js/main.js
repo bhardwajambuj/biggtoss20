@@ -56,26 +56,60 @@ if (!/^[A-Z0-9]{3,8}$/.test(urlCode)) urlCode = '';
 
 function makeEnt(i) {
   return { i, L: cast[i], x: 0, y: 0, tx: 0, ty: 0, f: 1, human: 0, nick: '', hp: MAXHP, lives: 2, trp: 0, seat: -1, slaps: 0,
-    phase: i, walk: 0, moving: false, slapT: 0, hitT: 0, z: 0, vz: 0, cheek: 0, say: '', sayT: 0, koT: 0, swim: false, scale: 1 };
+    phase: i, walk: 0, moving: false, slapT: 0, hitT: 0, z: 0, vz: 0, base: 0, lift: 0, sortY: 0, cheek: 0, say: '', sayT: 0, koT: 0, swim: false, scale: 1 };
 }
 const nameOf = (e) => (e.human && e.nick ? `${e.nick} (${e.L.short})` : e.L.short);
 
 // --------------------------------------------------------------- collision
-function ptOk(x, y) {
+// Walls (anything outside the rooms and doorways) always block. Furniture
+// blocks too, unless it has a top surface and your feet are at least that
+// high: alt = height of the feet above the floor (what you stand on + jump).
+const STEP_UP = 3;
+let solids = [];   // [{ r: [x, y, w, h], top, sy }] built from world.props at boot
+function ptOk(x, y, alt) {
   let ok = false;
   for (const r of world.walk) if (x >= r[0] && x <= r[0] + r[2] && y >= r[1] && y <= r[1] + r[3]) { ok = true; break; }
   if (!ok) return false;
-  for (const r of world.solids) if (x > r[0] && x < r[0] + r[2] && y > r[1] && y < r[1] + r[3]) return false;
+  for (const s of solids) { const r = s.r; if (x > r[0] && x < r[0] + r[2] && y > r[1] && y < r[1] + r[3] && (!s.top || s.top > alt + STEP_UP)) return false; }
   return true;
 }
-function blocked(x, y) {
-  for (const [sx, sy] of world.samples) if (!ptOk(x + sx, y + sy)) return true;
+function blocked(x, y, alt = 0) {
+  for (const [sx, sy] of world.samples) if (!ptOk(x + sx, y + sy, alt)) return true;
   return false;
 }
+// Height of the furniture under the feet box (0 = floor). Also leaves the
+// draw-order key of that furniture in surfSort so we get drawn on top of it.
+let surfSort = 0;
+function surfaceAt(x, y) {
+  let top = 0; surfSort = 0;
+  for (const s of solids) {
+    if (!s.top) continue;
+    const r = s.r;
+    for (const [sx, sy] of world.samples) {
+      const px = x + sx, py = y + sy;
+      if (px > r[0] && px < r[0] + r[2] && py > r[1] && py < r[1] + r[3]) { if (s.top > top) top = s.top; if (s.sy > surfSort) surfSort = s.sy; break; }
+    }
+  }
+  return top;
+}
+// Keep e.base (what the feet rest on) in step with the position. The jump
+// height is adjusted so the character does not pop when stepping on or off.
+function syncBase(e) {
+  const b = surfaceAt(e.x, e.y);
+  if (b !== e.base) { e.z = Math.max(0, e.base + e.z - b); e.base = b; }
+  e.lift = b; e.sortY = b ? Math.max(e.y, surfSort + 0.6) : e.y;
+}
+function wallFree(x1, y1, x2, y2) {   // straight line that never touches a wall
+  const n = Math.max(1, Math.ceil(Math.hypot(x2 - x1, y2 - y1) / 4));
+  for (let i = 1; i <= n; i++) if (blocked(x1 + ((x2 - x1) * i) / n, y1 + ((y2 - y1) * i) / n, 1e9)) return false;
+  return true;
+}
 function unstick(e) {
-  for (let r = 6; r <= 120; r += 6) for (let a = 0; a < TAU; a += Math.PI / 8) {
+  // nearest free spot, preferring ones on our side of the wall
+  for (const sameSide of [true, false]) for (let r = 6; r <= 120; r += 6) for (let a = 0; a < TAU; a += Math.PI / 8) {
     const x = e.x + Math.cos(a) * r, y = e.y + Math.sin(a) * r;
-    if (!blocked(x, y)) { e.x = x; e.y = y; return; }
+    if (blocked(x, y) || (sameSide && !wallFree(e.x, e.y, x, y))) continue;
+    e.x = x; e.y = y; return;
   }
 }
 function inWater(x, y) { const [wx, wy, ww, wh] = world.water; return x > wx + 6 && x < wx + ww - 6 && y > wy + 6 && y < wy + wh - 6; }
@@ -127,7 +161,7 @@ function onWelcome(m) {
   m.p.forEach((v, k) => { const e = ents[(k / 3) | 0]; if (k % 3 === 0) e.x = e.tx = v; else if (k % 3 === 1) e.y = e.ty = v; else e.f = e.tf = v; });
   onRoster(m.r);
   const e = ents[me]; e.x = m.x; e.y = m.y; e.seat = -1; e.koT = 0;
-  if (blocked(e.x, e.y)) unstick(e);
+  if (blocked(e.x, e.y, 1e9)) unstick(e);   // only walls count: you may legitimately be up on furniture
   cam.x = e.x; cam.y = e.y - 40;
   my.joinT = T; my.room = '';
   history.replaceState(null, '', `?h=${houseCode}`);
@@ -168,7 +202,7 @@ function onSlap(m) {
   const v = ents[m.v];
   if (Math.abs(v.x - a.x) > 2) a.f = v.x > a.x ? 1 : -1;
   v.hitT = 0.8; v.cheek = 5;
-  const hy = v.y - v.z - 50 * v.L.h * v.scale;
+  const hy = v.y - v.z - v.lift - 50 * v.L.h * v.scale;
   fx.push({ k: 'burst', x: v.x + m.nx * 6, y: hy - 22, text: pick(a.L.punch ? PUNCH_WORDS : SLAP_WORDS), t: 0, life: 0.8, rot: (Math.random() - 0.5) * 0.5 });
   for (let i = 0; i < 7; i++) { const an = Math.random() * TAU, sp = 90 + Math.random() * 150; fx.push({ k: 'star', x: v.x, y: hy, vx: Math.cos(an) * sp + m.nx * 120, vy: Math.sin(an) * sp - 90, t: 0, life: 0.55 + Math.random() * 0.3 }); }
   (a.L.punch ? sfx.punch : sfx.slap)(vol);
@@ -232,7 +266,7 @@ function standUp() {
   const e = ents[me]; if (e.seat < 0) return;
   const s = world.seats[e.seat];
   e.seat = -1; e.x = s.ex; e.y = s.ey; my.ignoreSeat = T + 0.45;
-  if (blocked(e.x, e.y)) unstick(e);
+  if (blocked(e.x, e.y, 1e9)) unstick(e);
   send({ t: 'stand' }); sfx.sit(0.6);
 }
 function doSit() {
@@ -306,9 +340,18 @@ function moveMe(dt) {
     const sp = e.swim ? SWIM : SPEED; vx += ix * sp; vy += iy * sp;
     if (Math.abs(ix) > 0.15) e.f = ix > 0 ? 1 : -1;
   }
-  if (blocked(e.x, e.y)) unstick(e);
-  const nx = e.x + vx * dt; if (!blocked(nx, e.y)) e.x = nx; else my.kx = 0;
-  const ny = e.y + vy * dt; if (!blocked(e.x, ny)) e.y = ny; else my.ky = 0;
+  syncBase(e);
+  if (blocked(e.x, e.y, e.base + e.z)) { unstick(e); syncBase(e); }
+  // Move in steps of at most 4 px so nothing can be skipped over, however
+  // hard the slap or slow the frame.
+  const mx = vx * dt, mv = vy * dt, steps = Math.max(1, Math.ceil(Math.max(Math.abs(mx), Math.abs(mv)) / 4));
+  for (let k = 0; k < steps; k++) {
+    const alt = e.base + e.z;
+    let moved = false;
+    const nx = e.x + mx / steps; if (!blocked(nx, e.y, alt)) { e.x = nx; moved = true; } else my.kx = 0;
+    const ny = e.y + mv / steps; if (!blocked(e.x, ny, alt)) { e.y = ny; moved = true; } else my.ky = 0;
+    if (moved) syncBase(e); else break;
+  }
   e.moving = mag > 0.12 && !frozen;
 
   const r = roomAt(e.x, e.y);
@@ -337,13 +380,16 @@ function netTick(dt) {
 function updateEnts(dt) {
   for (const e of ents) {
     const seat = e.seat >= 0 ? world.seats[e.seat] : null;
-    if (seat) { e.x = seat.x; e.y = seat.y; if (seat.f) e.f = seat.f; e.moving = false; }
+    if (seat) { e.x = seat.x; e.y = seat.y; if (seat.f) e.f = seat.f; e.moving = false; e.base = e.lift = 0; e.sortY = e.y; }
     else if (e.i !== me) {
       const dx = e.tx - e.x, dy = e.ty - e.y, d = Math.hypot(dx, dy);
       if (d > 240) { e.x = e.tx; e.y = e.ty; e.koT = 0; if (joined) puff(e.x, e.y, '#fff'); }
       else { const k = Math.min(1, dt * 13); e.x += dx * k; e.y += dy * k; }
       e.moving = d > 2.4;
       if (e.tf && e.hitT <= 0) e.f = e.tf;
+      // standing on furniture is a pure function of where the feet are
+      e.base = surfaceAt(e.x, e.y); e.sortY = e.base ? Math.max(e.y, surfSort + 0.6) : e.y;
+      e.lift += (e.base - e.lift) * Math.min(1, dt * 16);
     }
     e.walk += ((e.moving ? 1 : 0) - e.walk) * Math.min(1, dt * 12);
     if (e.moving) e.phase += dt * (e.swim ? 7 : 11.5);
@@ -432,6 +478,7 @@ function drawEnt(e) {
     drawAvatar(ctx, L, { t: T, f: e.f, hit: 1, cheek: 1 });
     ctx.restore(); return;
   }
+  if (e.lift > 0.5) ctx.translate(0, -e.lift);   // standing on a bed, sofa or table
   if (e.swim) {
     ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 2.5;
     const rp = (T * 1.4 + e.i * 0.3) % 1;
@@ -452,7 +499,7 @@ function drawEnt(e) {
 function headY(e) {
   const seat = e.seat >= 0 ? world.seats[e.seat] : null;
   if (seat && seat.k === 'bed') return e.y - 40;
-  return e.y - e.z - (e.swim ? 54 : seat ? 76 : 84) * e.L.h * e.scale;
+  return e.y - e.z - e.lift - (e.swim ? 54 : seat ? 76 : 84) * e.L.h * e.scale;
 }
 
 function drawLabels() {
@@ -591,8 +638,8 @@ function buildHud(swapped) {
   });
   updateHud();
   if (swapped) return;
-  if (matchMedia('(pointer: coarse)').matches) toast('Left thumb moves. SLAP to slap, JUMP dodges slaps!', 4200);
-  else toast('WASD to move · F or click to slap · Space dodges slaps · E to sit', 4800);
+  if (matchMedia('(pointer: coarse)').matches) toast('Left thumb moves. SLAP to slap. JUMP dodges slaps and hops onto furniture!', 4800);
+  else toast('WASD to move · F or click to slap · Space jumps (dodge slaps, hop onto beds, sofas and tables) · E to sit', 5600);
 }
 
 function drawMinimap() {
@@ -710,7 +757,9 @@ function closeSwitch() { if (!switching) return; endSwitch(); showSelect(false);
 // --------------------------------------------------------------------- boot
 async function boot() {
   const [w, d] = await Promise.all([fetch('data/world.json').then((r) => r.json()), fetch('data/cast.json').then((r) => r.json())]);
-  world = w; data = d; cast = d.cast; cast.forEach((L, i) => { L.seed = i * 1.7; });
+  world = w; data = d; cast = d.cast;
+  solids = world.props.filter((p) => p.s).map((p) => ({ r: p.r, top: p.top || 0, sy: p.k === 'ctable' ? p.r[1] + p.r[3] : p.r[1] + 1 }));
+  cast.forEach((L, i) => { L.seed = i * 1.7; });
   mini = world.doors.find((x) => x.mini).r;
   try { await Promise.race([Promise.all([document.fonts.load('30px Bangers'), document.fonts.load('700 14px "Baloo 2"')]), new Promise((r) => setTimeout(r, 2000))]); } catch (e) { /* fall back to system fonts */ }
   house = new House(world, cast);

@@ -170,11 +170,11 @@ class House:
         self.dirty = True
 
     # -- slapping
-    def slap(self, a, t):
+    def slap(self, a, t, reach=SLAP_RANGE):
         if t < a.next_slap or t < a.stun or a.ko_until or a.seat >= 0:
             return
         a.next_slap = t + SLAP_CD
-        best, bd = None, SLAP_RANGE
+        best, bd = None, reach
         for e in self.ents:
             if e is a or e.ko_until or t < e.air:
                 continue
@@ -364,6 +364,15 @@ class House:
                         e.repath = t + 0.5
                         e.path = world.find_path(e.x, e.y, v.x, v.y)
                     self.follow(e, dt, CHASE_SPEED)
+                    if not e.path and d < 115 and t >= e.next_slap + 0.35 and world.blocked(v.x, v.y):
+                        # as close as the floor allows and the target is up on
+                        # furniture: leap and swing, so tables are not a safe zone
+                        if abs(v.x - e.x) > 2:
+                            e.f = 1 if v.x > e.x else -1
+                        e.air = t + 0.45
+                        self.cast({"t": "jump", "i": e.i})
+                        self.slap(e, t, reach=120)
+                        e.rev_hits -= 1
                 return
         if e.seat >= 0:
             if t >= e.wait:

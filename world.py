@@ -209,32 +209,35 @@ BW, BH = W // Q + 1, H // Q + 1
 _bm = bytearray(BW * BH)
 
 
-def _fill(rect, val):
+def _fill(bm, rect, val):
     x, y, w, h = rect
     x0, x1 = max(0, x // Q), min(BW, (x + w) // Q)
     y0, y1 = max(0, y // Q), min(BH, (y + h) // Q)
     row = bytes([val]) * (x1 - x0)
     for cy in range(y0, y1):
-        _bm[cy * BW + x0: cy * BW + x1] = row
+        bm[cy * BW + x0: cy * BW + x1] = row
 
 
 for _r in WALK:
-    _fill(_r, 1)
+    _fill(_bm, _r, 1)
 _hm = bytearray(_bm)  # "hard" map: walls and furniture nobody can climb
-for _p_ in PROPS:
-    if _p_["s"]:
-        _fill(_p_["r"], 0)
-        if not _p_.get("top"):
-            _bm, _hm = _hm, _bm
-            _fill(_p_["r"], 0)
-            _bm, _hm = _hm, _bm
+for _pr in PROPS:
+    if _pr["s"]:
+        _fill(_bm, _pr["r"], 0)
+        if not _pr.get("top"):
+            _fill(_hm, _pr["r"], 0)
 
 # Feet box of a character, relative to (x, y) = centre of the feet.
 SAMPLES = [(-15, -9), (0, -9), (15, -9), (-15, 5), (0, 5), (15, 5)]
 
 
-def _hit(bm, x, y):
-    for sx, sy in SAMPLES:
+# The same box grown by 3 px. Lines are checked with this one every 4 px, which
+# guarantees that every point in between is clear for the real box.
+SAMPLES_WIDE = [(sx + (3 if sx > 0 else -3 if sx < 0 else 0), sy + (3 if sy > 0 else -3)) for sx, sy in SAMPLES]
+
+
+def _hit(bm, x, y, samples=None):
+    for sx, sy in samples or SAMPLES:
         px, py = int(x + sx), int(y + sy)
         if px < 0 or py < 0 or px >= W or py >= H:
             return True
@@ -292,27 +295,32 @@ def clear_line(x1, y1, x2, y2, hard=False):
     walls (used for stepping down off furniture)."""
     bm = _hm if hard else _bm
     d = math.hypot(x2 - x1, y2 - y1)
-    n = max(1, int(d / Q))
-    for i in range(1, n + 1):
+    n = max(1, math.ceil(d / Q))
+    for i in range(1, n):
         t = i / n
-        if _hit(bm, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t):
+        if _hit(bm, x1 + (x2 - x1) * t, y1 + (y2 - y1) * t, SAMPLES_WIDE):
             return False
-    return True
+    return not _hit(bm, x2, y2)
 
 
-def _nearest_free(x, y):
-    """Nearest nav cell that can be reached from (x, y) in a straight line
-    without passing through a wall. Falls back to the plain nearest cell."""
+def _attach(x, y):
+    """Connect an arbitrary point to the nav grid.
+
+    Returns (waypoints, cell): the waypoints lead from (x, y) to the centre of
+    a free nav cell without passing through a wall (or through furniture, when
+    the point is on the floor). Usually that is a single straight hop; from
+    tight nooks it is a short flood-filled detour.
+    """
     cx = min(GW - 1, max(0, int(x) // CELL))
     cy = min(GH - 1, max(0, int(y) // CELL))
     if not blocked(x, y):
-        mode = 1          # on the floor: the line must be fully walkable
+        hard = False      # on the floor: the way out must be fully walkable
     elif not blocked_hard(x, y):
-        mode = 2          # standing on furniture: only walls matter
+        hard = True       # standing on furniture: only walls matter
     else:
-        mode = 0
+        hard = None       # inside a wall; should not happen, take what we get
     fallback = None
-    for rad in range(0, 9):
+    for rad in range(0, 7):
         cands = []
         for dy in range(-rad, rad + 1):
             for dx in range(-rad, rad + 1):
@@ -326,22 +334,62 @@ def _nearest_free(x, y):
         for _, n, px, py in cands:
             if fallback is None:
                 fallback = n
-            if mode == 0 or clear_line(x, y, px, py, hard=(mode == 2)):
-                return n
-    return fallback
+            if hard is None or clear_line(x, y, px, py, hard=hard):
+                return [(px, py)], n
+    if hard is not None:
+        way = _flood(x, y, hard)
+        if way:
+            return way
+    if fallback is None:
+        return [], None
+    return [_center(fallback)], fallback
 
 
-def find_path(sx, sy, gx, gy):
-    """A* over the nav grid, then string-pulled. Returns a list of (x, y)."""
-    s = _nearest_free(sx, sy)
-    g = _nearest_free(gx, gy)
-    if s is None or g is None:
-        return []
-    goal_pt = (gx, gy) if not blocked(gx, gy) else _center(g)
+def _flood(x, y, hard):
+    """Breadth-first search on a 4 px lattice from (x, y) to the nearest nav
+    cell centre. Slow, but only needed from awkward corners."""
+    bm = _hm if hard else _bm
+    start = (0, 0)
+    came = {start: None}
+    queue = [start]
+    qi = 0
+    while qi < len(queue) and qi < 6000:
+        cur = queue[qi]
+        qi += 1
+        px, py = x + cur[0] * Q, y + cur[1] * Q
+        gx, gy = int(px) // CELL, int(py) // CELL
+        if 0 <= gx < GW and 0 <= gy < GH and _free[gy * GW + gx] and not _hit(_bm, px, py):
+            c = gy * GW + gx
+            ctr = _center(c)
+            if clear_line(px, py, ctr[0], ctr[1]):
+                pts = []
+                while cur is not None:
+                    pts.append((x + cur[0] * Q, y + cur[1] * Q))
+                    cur = came[cur]
+                pts.reverse()
+                out = []
+                for k in range(1, len(pts)):
+                    # keep only the corners
+                    if k + 1 < len(pts) and (pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]) == \
+                            (pts[k + 1][0] - pts[k][0], pts[k + 1][1] - pts[k][1]):
+                        continue
+                    out.append(pts[k])
+                out.append(ctr)
+                return out, c
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nxt = (cur[0] + dx, cur[1] + dy)
+            if nxt in came or max(abs(nxt[0]), abs(nxt[1])) > 45:
+                continue
+            if _hit(bm, x + nxt[0] * Q, y + nxt[1] * Q):
+                continue
+            came[nxt] = cur
+            queue.append(nxt)
+    return None
+
+
+def _astar(s, g):
     if s == g:
-        if blocked(sx, sy) or clear_line(sx, sy, goal_pt[0], goal_pt[1]):
-            return [goal_pt]
-        return [_center(s), goal_pt]
+        return [s]
     gcx, gcy = g % GW, g // GW
     cost = {s: 0.0}
     came = {s: -1}
@@ -378,19 +426,35 @@ def find_path(sx, sy, gx, gy):
         cells.append(cur)
         cur = came[cur]
     cells.reverse()
-    # Every hop below is either between neighbouring free cells or checked
-    # with clear_line, so a path can never cut through a wall.
+    return cells
+
+
+def find_path(sx, sy, gx, gy):
+    """A* over the nav grid, then string-pulled. Returns a list of (x, y).
+
+    Every hop is either between neighbouring free cells, part of an _attach
+    lead-in, or verified with clear_line, so a path never cuts through a wall.
+    If the goal is not standable (someone on a table, say) the path ends at
+    the closest nav cell instead.
+    """
+    lead, s = _attach(sx, sy)
+    tail, g = _attach(gx, gy)
+    if s is None or g is None:
+        return []
+    cells = _astar(s, g)
+    if not cells:
+        return []
     pts = [_center(c) for c in cells]
-    if goal_pt != pts[-1]:
-        pts.append(goal_pt)
-    # string pulling
+    if not blocked(gx, gy):
+        pts += tail[-2::-1] + [(gx, gy)]
     out = []
-    ax, ay = sx, sy
-    i = 0
-    if blocked(ax, ay):
-        ax, ay = pts[0]       # step down off whatever we are standing on
-        out.append(pts[0])
+    if len(lead) > 1 or blocked(sx, sy):
+        out = list(lead)
+        ax, ay = lead[-1]
         i = 1
+    else:
+        ax, ay = sx, sy
+        i = 0
     while i < len(pts):
         j = min(len(pts) - 1, i + 14)
         while j > i and not clear_line(ax, ay, pts[j][0], pts[j][1]):
@@ -431,7 +495,7 @@ def _seat_exits():
             order += [below, left, right, above]
         pick = next((c for c in order if not blocked(*c)), None)
         if pick is None:
-            c = _nearest_free(s["x"], s["y"])
+            way, c = _attach(s["x"], s["y"])
             assert c is not None, "seat with no exit: %r" % s
             pick = _center(c)
         s["ex"], s["ey"] = round(pick[0]), round(pick[1])
