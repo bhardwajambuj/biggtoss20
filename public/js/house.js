@@ -678,9 +678,8 @@ const KINDS = {
   bag(p) {
     const [x, y, w, h] = p.r;
     return [{ bb: [x - 14, y - 124, 100, 154], sortY: y + h, draw(c) {
+      // only the stand is baked; the bag itself swings (see makeBag)
       box(c, x - 8, y + 6, w + 16, 18, 6, '#44506a'); box(c, x + 14, y - 114, 10, 126, 3, '#8892a6'); box(c, x + 14, y - 116, 54, 9, 3, '#8892a6');
-      line(c, [x + 56, y - 107, x + 56, y - 92], OUT, 2.5);
-      box(c, x + 41, y - 92, 30, 76, 13, '#e3173e', 3); box(c, x + 41, y - 76, 30, 8, 0, '#fff', 0); txt(c, 'MK', x + 56, y - 50, 14, '#fff');
     } }];
   },
   chess(p) {
@@ -717,6 +716,32 @@ const MINI = { bb: [2282, 316, 60, 64], sortY: 431, draw(c) {
   box(c, 2291, 351, 42, 16, 4, '#fff7e6', 1.6); txt(c, 'DRINK ME', 2312, 359.5, 10, OUT);
 } };
 
+// The punching bag hangs from its stand on a damped pendulum, so it can be hit.
+function makeBag(p) {
+  const [x, y, , h] = p.r;
+  return {
+    px: x + 56, py: y - 107, sortY: y + h + 0.05, ang: 0, vel: 0, squash: 0,
+    hit(dir, power = 1) {   // dir: +1 knocks it to the right, -1 to the left
+      this.vel = Math.max(-9, Math.min(9, this.vel - dir * 4.6 * power));
+      this.squash = 1;
+    },
+    update(dt) {
+      this.vel += (-40 * this.ang - 1.7 * this.vel) * dt;
+      this.ang = Math.max(-1.15, Math.min(1.15, this.ang + this.vel * dt));
+      this.squash = Math.max(0, this.squash - dt * 6);
+    },
+    visible(vx, vy, vw, vh) { return this.px + 110 > vx && this.px - 110 < vx + vw && this.py + 110 > vy && this.py - 20 < vy + vh; },
+    draw(c) {
+      c.save(); c.translate(this.px, this.py); c.rotate(this.ang); c.lineJoin = 'round';
+      line(c, [0, 0, 0, 15], OUT, 2.5);
+      const s = this.squash * 0.12;
+      c.translate(0, 15); c.scale(1 + s, 1 - s * 0.6);
+      box(c, -15, 0, 30, 76, 13, '#e3173e', 3); box(c, -15, 16, 30, 8, 0, '#fff', 0); txt(c, 'MK', 0, 42, 14, '#fff');
+      c.restore();
+    },
+  };
+}
+
 export class House {
   constructor(world, cast) {
     this.world = world;
@@ -735,6 +760,8 @@ export class House {
     for (const p of world.props) for (const L of (KINDS[p.k] ? KINDS[p.k](p) : [])) this.sprites.push(this.bake(L, ps));
     this.sprites.push(this.bake(MINI, ps));
     this.sprites.sort((a, b) => a.sortY - b.sortY);
+    const bag = world.props.find((p) => p.k === 'bag');
+    this.bag = bag ? makeBag(bag) : null;
     for (const r of world.rooms) if (r.id !== 'garden') { const [x, y, w] = r.r; LEDS.push([x + 15, y - world.face + 13], [x + w - 15, y - world.face + 13]); }
     for (const [px, py] of [[112, 1122], [2528, 1122], [112, 1712], [2528, 1712]]) LEDS.push([px, py - 7]);
     this.mini = world.doors.find((d) => d.mini).r;

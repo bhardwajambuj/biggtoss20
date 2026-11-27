@@ -201,6 +201,10 @@ _build()
 
 WALK = [r["r"] for r in ROOMS] + [d["r"] for d in DOORS]
 SOLIDS = [p["r"] for p in PROPS if p["s"]]
+# The punching bag hangs off its stand, over open ground: this is the spot on
+# the floor underneath it, which is what a swing has to be close to.
+_bag = next(p["r"] for p in PROPS if p["k"] == "bag")
+BAG = (_bag[0] + 56, _bag[1] + 12)
 
 # ---------------------------------------------------------------- collision
 Q = 4  # bitmap resolution in px
@@ -535,5 +539,5 @@ def as_json():
         "w": W, "h": H, "face": FACE,
         "rooms": ROOMS, "doors": DOORS, "props": PROPS, "seats": SEATS,
         "stools": STOOLS, "water": WATER, "walk": WALK, "solids": SOLIDS,
-        "samples": SAMPLES,
+        "samples": SAMPLES, "bag": list(BAG),
     }

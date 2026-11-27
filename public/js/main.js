@@ -21,6 +21,7 @@ const SPEED = 215, SWIM = 132, MAXHP = 5, SLAP_CD = 0.44;
 const SLAP_WORDS = ['THAPPAD!', 'CHATAK!', 'SATAAK!', 'DHISHOOM!', 'TADAAK!', 'OYE HOYE!'];
 const PUNCH_WORDS = ['PUNCH!', 'KNOCKOUT!', 'DHISHOOM!'];
 const BLOCK_WORDS = ['BLOCKED!', 'NO ENTRY!', 'BHAI!', 'NICE TRY!'];
+const BAG_RANGE = 78;   // keep in step with BAG_RANGE in server.py
 const CARD_BG = ['#8a4fd0', '#16a6a0', '#ff9d3c', '#ffc928', '#2f7de1', '#ff7a59', '#ffc928', '#39d98a', '#8a4fd0', '#ff8fc0', '#2f7de1', '#ff9d3c', '#16a6a0', '#ff6fae', '#ffc928', '#e3476b', '#39c6e8', '#ffb03c'];
 const SEAT_PROMPT = { sit: 'Sit', bed: 'Sleep (Bigg Boss is watching)', throne: 'Take the Teapot Throne (+TRP)', pod: 'Enter the Jeevandaan pod', conf: 'Confess to Bigg Boss', basket: 'Hop in the balloon' };
 const AMBIENT = [
@@ -211,7 +212,10 @@ function onSlap(m) {
   const a = ents[m.a]; if (!a) return;
   if (!(m.a === me && a.slapT > 0)) a.slapT = 0.001;
   const vol = volAt(a.x, a.y);
-  if (m.v < 0) { sfx.whoosh(vol); if (m.h) onHostBlock(a, m.a === me, vol); return; }
+  if (m.v < 0) {
+    if (m.b) onBagHit(a, m, vol); else { sfx.whoosh(vol); if (m.h) onHostBlock(a, m.a === me, vol); }
+    return;
+  }
   const v = ents[m.v];
   if (Math.abs(v.x - a.x) > 2) a.f = v.x > a.x ? 1 : -1;
   v.hitT = 0.8; v.cheek = 5;
@@ -228,6 +232,23 @@ function onSlap(m) {
     else ticker(`${nameOf(v)}, aapka safar yahin samaapt hota hai. EVICTED by ${nameOf(a)}!`);
     if (m.v === me) flash(m.ko === 1 ? 'TATHAS-TWO!' : 'EVICTED!', m.ko === 1 ? 'You lost a Jeevandaan. Last life! The pods in Room 2X can restore it.' : 'Half your TRP is gone. Back in through the main gate.');
     else if (m.a === me) flash(m.ko === 2 ? 'EVICTION!' : 'JEEVANDAAN GONE!', m.ko === 2 ? `You sent ${v.L.short} out of the house. +50 TRP` : `${v.L.short} is on their last life.`);
+  }
+}
+
+// Nobody in reach, but the garden punching bag was: it swings, and combos pay.
+function onBagHit(a, m, vol) {
+  const bag = house.bag; if (!bag) return;
+  const [bx, by] = world.bag, mine = m.a === me;
+  a.f = m.b;
+  bag.hit(m.b, m.n % 10 === 0 ? 1.5 : 1);
+  sfx.punch(vol * 0.9);
+  const hy = by - 62;
+  if (m.n === 1 || m.n % 5 === 0) fx.push({ k: 'burst', x: bx + m.b * 10, y: hy - 30, text: m.n % 10 === 0 ? `${m.n} COMBO!` : m.n >= 5 ? `x${m.n}!` : pick(PUNCH_WORDS), t: 0, life: 0.8, rot: (Math.random() - 0.5) * 0.5 });
+  for (let i = 0; i < 4; i++) { const an = Math.random() * TAU, sp = 70 + Math.random() * 110; fx.push({ k: 'star', x: bx, y: hy, vx: Math.cos(an) * sp + m.b * 110, vy: Math.sin(an) * sp - 70, t: 0, life: 0.4 + Math.random() * 0.25 }); }
+  if (mine) {
+    cam.shake = Math.max(cam.shake, m.g > 1 ? 9 : 4);
+    floater(bx + m.b * 26, hy - 20, `+${m.g} TRP`, '#ffe14a');
+    if (m.g > 1) { sfx.ding(0.7); if (navigator.vibrate) navigator.vibrate(40); }
   }
 }
 
@@ -382,12 +403,14 @@ function moveMe(dt) {
   const r = roomAt(e.x, e.y);
   if (r && r.id !== my.room) { my.room = r.id; const tag = $('#roomtag'); tag.textContent = r.name; tag.classList.add('show'); clearTimeout(tag._t); tag._t = setTimeout(() => tag.classList.remove('show'), 1800); }
 
-  // contextual sit prompt
-  const si = nearSeat(), pr = $('#prompt');
+  // contextual prompt: a seat to take, or the punching bag to hit (-2)
+  let si = nearSeat(); const pr = $('#prompt');
+  if (si < 0 && e.seat < 0 && Math.hypot(world.bag[0] - e.x, (world.bag[1] - e.y) * 1.5) < BAG_RANGE) si = -2;
   if (si !== my.wantSeat) {
     my.wantSeat = si;
-    pr.classList.toggle('show', si >= 0); $('#tSit').classList.toggle('hot', si >= 0);
+    pr.classList.toggle('show', si !== -1); $('#tSit').classList.toggle('hot', si >= 0);
     if (si >= 0) pr.innerHTML = `<kbd>E</kbd>${SEAT_PROMPT[world.seats[si].k]}`;
+    else if (si === -2) pr.innerHTML = '<kbd>F</kbd>Punch the bag (+TRP)';
   }
 }
 
@@ -595,6 +618,7 @@ function render(dt) {
 
   drawList.length = 0;
   for (const s of house.sprites) if (s.x < vx + vw && s.x + s.w > vx && s.y < vy + vh && s.y + s.h > vy) drawList.push(s);
+  if (house.bag) { house.bag.update(dt); if (house.bag.visible(vx, vy, vw, vh)) drawList.push(house.bag); }
   if (joined) for (const e of ents) if (e.x > vx - 80 && e.x < vx + vw + 80 && e.y > vy - 40 && e.y < vy + vh + 130) drawList.push(e);
   drawList.sort((a, b) => (a.sortY ?? a.y) - (b.sortY ?? b.y));
   for (const d of drawList) {
@@ -605,7 +629,8 @@ function render(dt) {
       if (d.a < 0.99) ctx.globalAlpha = d.a;
       ctx.drawImage(d.img, d.x, d.y, d.w, d.h);
       ctx.globalAlpha = 1;
-    } else drawEnt(d);
+    } else if (d.draw) d.draw(ctx);
+    else drawEnt(d);
   }
   drawFx(dt);
   if (joined) drawLabels();
@@ -838,4 +863,4 @@ async function boot() {
 boot().catch((err) => { console.error(err); $('#curtain p').textContent = 'Could not open the house. Is the server running?'; });
 
 // Handy for debugging from the console.
-window.__bt = { ents, cam, my, get me() { return me; }, get joined() { return joined; } };
+window.__bt = { ents, cam, my, get me() { return me; }, get joined() { return joined; }, get house() { return house; } };

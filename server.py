@@ -49,6 +49,8 @@ HOP_T = 0.42          # seconds a bot takes to hop on/off furniture
 BOT_SPEED = 118
 CHASE_SPEED = 158
 HOST_SPEED = 92       # the host strolls, he does not hurry
+BAG_RANGE = 78        # how close you must be to punch the garden punching bag
+BAG_COMBO_GAP = 1.5   # seconds between punches before a combo resets
 MAX_CLIENTS = 3000
 MAX_HOUSES = 400
 CODE_RE = re.compile(r"^[A-Z0-9]{3,8}$")
@@ -301,6 +303,8 @@ class Ent:
         self.want_perch = None
         self.hop = None          # (x0, y0, x1, y1, t0, getting_on)
         self.next_bop = 0.0
+        self.bag_n = 0           # current punching-bag combo
+        self.bag_t = 0.0
         # host only
         self.host = i == HOST_I
         self.talk_until = 0.0
@@ -402,6 +406,19 @@ class House:
                 best, bd = e, d
         if best is None:
             miss = {"t": "slap", "a": a.i, "v": -1}
+            bx, by = world.BAG
+            if math.hypot(bx - a.x, (by - a.y) * 1.5) < BAG_RANGE:
+                # Nobody to slap, but the punching bag is right there.
+                if abs(bx - a.x) > 2:
+                    a.f = 1 if bx > a.x else -1
+                a.bag_n = a.bag_n + 1 if t - a.bag_t <= BAG_COMBO_GAP else 1
+                a.bag_t = t
+                gain = 6 if a.bag_n % 10 == 0 else 1     # every 10th in a row pays a bonus
+                a.trp += gain
+                miss.update(b=a.f, n=a.bag_n, g=gain)
+                self.cast(miss)
+                self.dirty = True
+                return
             hs = self.host
             if math.hypot(hs.x - a.x, (hs.y - a.y) * 1.5) < reach:
                 # The host is never a victim: the swing is waved away and he
