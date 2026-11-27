@@ -16,10 +16,12 @@ import math
 import os
 import random
 import re
+import signal
 import struct
 import time
 from urllib.parse import urlsplit, unquote
 
+import playlog
 import world
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "public")
@@ -259,6 +261,8 @@ def collect_stats(window="all"):
         "by_day": day_series,
         "log_files": len(paths),
         "logging_since_note": "Access logging started 2026-11-27; earlier traffic was not recorded.",
+        # who joined which house and for how long, from the game's own play log
+        "play": playlog.stats(since),
     }
     _stats_cache[cache_key] = (_wall() + 8, payload)
     out = dict(payload)
@@ -799,6 +803,8 @@ class Client:
         self.alive = True
         self.house = None
         self.ent = None
+        self.sess = None         # play-log record while in a house
+        self.seen = _wall()      # last time this client sent anything
         self.last_say = 0.0
         self.last_switch = 0.0
         self.msgs = 0
@@ -839,6 +845,14 @@ class Client:
         if not h:
             return
         h.clients.discard(self)
+        if self.sess:
+            # A tab that was closed or put in the background just stops talking
+            # and times out over a minute later: count play time up to when the
+            # player was last heard from, not up to the timeout.
+            quiet = _wall() - self.seen > 10
+            playlog.end(self.sess, e.trp if e else 0, e.slaps if e else 0,
+                        h.humans() - (1 if e and e.client is self else 0), at=self.seen if quiet else None)
+            self.sess = None
         if e and e.client is self:
             e.client = None
             e.nick = ""
@@ -952,6 +966,7 @@ class Client:
         self.house, self.ent = h, e
         h.clients.add(self)
         h.dirty = True
+        self.sess = playlog.start(m.get("u"), h.code, h.public, CAST[idx]["short"], h.humans())
         self.welcome()
         h.cast({"t": "bb", "k": "join", "i": idx})
 
@@ -1009,6 +1024,7 @@ class Client:
         a.wait = tn + random.uniform(1, 3)
         self.ent = b
         h.dirty = True
+        playlog.switch(self.sess, CAST[b.i]["short"])
         self.welcome()
         h.cast({"t": "bb", "k": "switch", "i": b.i, "o": a.i, "n": b.nick})
 
@@ -1050,6 +1066,7 @@ async def ws_session(reader, writer, headers):
                 continue
             if op != 1:
                 continue
+            c.seen = _wall()
             t = now()
             if t - c.msg_t > 1:
                 c.msg_t, c.msgs = t, 0
@@ -1165,12 +1182,42 @@ async def game_loop():
                 print("tick error in house %s: %r" % (h.code, ex), flush=True)
 
 
+async def playlog_heartbeat():
+    while True:
+        await asyncio.sleep(60)
+        playlog.tick()
+
+
 async def main():
+    playlog.open_log(ACCESS_LOG)     # backs the logs up first if the play-history format changed
+    if playlog.storage == "off":
+        print("Play history is OFF: %s" % playlog.problem, flush=True)
+    else:
+        print("Play history: %s (%d sessions so far, data format v%d, logs backed up in %s)"
+              % (playlog.path, len(playlog.SESSIONS), playlog.SCHEMA_VERSION, playlog.backup["name"]), flush=True)
     server = await asyncio.start_server(handle, HOST, PORT)
     print("Bigg Toss house is open: http://localhost:%d" % PORT, flush=True)
     asyncio.ensure_future(game_loop())
-    async with server:
-        await server.serve_forever()
+    asyncio.ensure_future(playlog_heartbeat())
+    # Stop cleanly on a restart or deploy so everyone still playing gets their
+    # play time written before the process goes away.
+    stop = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except (NotImplementedError, RuntimeError):
+            pass
+    await stop.wait()
+    for c in list(CLIENTS):
+        c.leave()           # writes each player's leave record with their final score
+        c.kill()
+    playlog.close_all()
+    server.close()
+    try:
+        await asyncio.wait_for(server.wait_closed(), 3)
+    except Exception:
+        pass
 
 
 if __name__ == "__main__":
@@ -1178,3 +1225,5 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         pass
+    finally:
+        playlog.close_all()

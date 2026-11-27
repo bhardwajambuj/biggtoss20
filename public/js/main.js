@@ -133,7 +133,19 @@ function connect() {
   };
 }
 function send(o) { if (wsOpen) ws.send(JSON.stringify(o)); }
-function sendJoin() { send({ t: 'join', c: cast[joined ? me : picked].id, house: houseCode || urlCode || null }); }
+// Anonymous random id kept by this browser, so the stats can tell a returning
+// player from a new one. It is not tied to a name, account or IP address.
+function playerId() {
+  try {
+    let id = localStorage.getItem('bt-pid');
+    if (!/^[a-z0-9]{12,32}$/.test(id || '')) {
+      id = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => (b % 36).toString(36)).join('');
+      localStorage.setItem('bt-pid', id);
+    }
+    return id;
+  } catch (e) { return ''; }   // storage blocked: this player is simply counted as untracked
+}
+function sendJoin() { send({ t: 'join', c: cast[joined ? me : picked].id, house: houseCode || urlCode || null, u: playerId() }); }
 setInterval(() => { if (!joined) send({ t: 'peek', house: urlCode || null }); }, 8000);
 
 function onMessage(m) {

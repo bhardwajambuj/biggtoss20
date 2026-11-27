@@ -45,6 +45,7 @@ h1 span { color: var(--pink); }
 .kpi b { display: block; font: 400 34px/1 var(--sign); color: #ffe14a; letter-spacing: 1px; }
 .kpi span { display: block; margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .kpi.live b { color: var(--good); }
+.kpi b.txt { font-size: 28px; overflow-wrap: anywhere; }
 .grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; }
 @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
 .panel {
@@ -67,6 +68,20 @@ canvas.tall { height: 280px; }
   background: rgba(245,197,66,.12); border: 1px solid rgba(245,197,66,.35);
 }
 .empty { color: var(--muted); font-weight: 700; padding: 24px 8px; }
+h2.sec { margin: 26px 0 4px; font: 400 32px/1 var(--sign); letter-spacing: 1px; color: #ffe14a; }
+h2.sec + .note { margin-bottom: 12px; }
+.panel.auto { min-height: 0; min-width: 0; }
+.scroll { max-height: 380px; overflow: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-weight: 600; }
+th { position: sticky; top: 0; background: #20152f; text-align: left; padding: 6px 8px; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); white-space: nowrap; }
+td { padding: 6px 8px; border-top: 1px solid var(--line); white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tag { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 800; border: 1px solid var(--line); color: var(--muted); }
+.tag.back { color: var(--ink); background: var(--gold); border-color: var(--gold); }
+.tag.now { color: var(--ink); background: var(--good); border-color: var(--good); }
+.bar { height: 6px; margin-top: 4px; min-width: 70px; border-radius: 999px; background: rgba(255,247,230,.08); overflow: hidden; }
+.bar i { display: block; height: 100%; border-radius: 999px; background: var(--gold); }
+tr.top td:nth-child(2) { color: #ffe14a; }
 .err { color: var(--pink); font-weight: 800; }
 footer { margin-top: 22px; color: var(--muted); font-size: 13px; font-weight: 600; }
 </style>
@@ -76,7 +91,7 @@ footer { margin-top: 22px; color: var(--muted); font-size: 13px; font-weight: 60
   <header>
     <div>
       <h1>BIGG <span>TOSS</span> STATS</h1>
-      <p class="sub">Live players and historical traffic from the server access log. Distinct users are unique IP addresses.</p>
+      <p class="sub">Live players, historical traffic from the server access log (distinct users are unique IP addresses) and play history from the game's own log.</p>
     </div>
     <div class="tools">
       <button type="button" data-w="24h">24h</button>
@@ -110,6 +125,31 @@ footer { margin-top: 22px; color: var(--muted); font-size: 13px; font-weight: 60
       <canvas id="dayChart" width="1000" height="220"></canvas>
     </section>
   </div>
+  <h2 class="sec">Play time and returning players</h2>
+  <p class="note" id="playNote"></p>
+  <div class="kpis" id="playKpis"></div>
+  <div class="grid">
+    <section class="panel auto">
+      <h2>Play history by day</h2>
+      <p class="hint">One row per UTC day, newest first</p>
+      <div class="scroll"><table id="dailyTable"></table></div>
+    </section>
+    <section class="panel auto">
+      <h2>Most played characters</h2>
+      <p class="hint">Played = visits in which the housemate was picked, mid-game switches included</p>
+      <div class="scroll"><table id="charTable"></table></div>
+    </section>
+    <section class="panel auto">
+      <h2>Recent visits</h2>
+      <p class="hint">Who joined which house and how long they played, newest first</p>
+      <div class="scroll"><table id="visitTable"></table></div>
+    </section>
+    <section class="panel auto">
+      <h2>Houses</h2>
+      <p class="hint">Each house that was opened, and how many played in it together</p>
+      <div class="scroll"><table id="houseTable"></table></div>
+    </section>
+  </div>
   <footer id="foot"></footer>
 </div>
 <script>
@@ -120,6 +160,77 @@ let timer = null;
 function fmt(ts) {
   if (!ts) return "—";
   return new Date(ts * 1000).toISOString().replace("T", " ").replace(/\.\d+Z$/, " UTC");
+}
+
+function dur(s) {
+  s = Math.round(s || 0);
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m " + String(s % 60).padStart(2, "0") + "s";
+  return Math.floor(s / 3600) + "h " + String(Math.floor((s % 3600) / 60)).padStart(2, "0") + "m";
+}
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const shortTime = (ts) => fmt(ts).slice(5, 16);
+
+function table(el, head, rows, empty) {
+  el.innerHTML = rows.length
+    ? `<thead><tr>${head.map(([h, num]) => `<th class="${num ? "num" : ""}">${h}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${head[i][1] ? "num" : ""}">${c}</td>`).join("")}</tr>`).join("")}</tbody>`
+    : `<tbody><tr><td class="empty">${empty}</td></tr></tbody>`;
+}
+
+function renderPlay(p) {
+  if (!p) { $("#playNote").textContent = "Play history is not available on this server version."; return; }
+  $("#playNote").innerHTML = !p.tracking
+    ? `<span class="err">Play history is not being saved: ${esc(p.problem || "the server has no writable place for its play log")}.</span>`
+    : p.since
+      ? `Tracked since ${fmt(p.since)}; earlier play was not recorded. A visit is one sitting: coming back within ${p.visit_gap_min} minutes counts as the same visit. A returning player came back after a longer break. Players are counted by an anonymous id kept in their browser.`
+      : "Play history is switched on. Nobody has entered a house since tracking began.";
+  $("#playKpis").innerHTML = [
+    ["", `<b class="txt">${p.top_char ? esc(p.top_char) : "—"}</b>`, "Most played character"],
+    ["", dur(p.avg_play), "Avg play time"],
+    ["", dur(p.median_play), "Median play time"],
+    ["", p.visits, "Visits"],
+    ["", p.players, "Players"],
+    ["", `${p.returning_players} <small style="font-size:.5em">(${p.returning_pct}%)</small>`, "Returning players"],
+    ["", p.new_players, "New players"],
+    ["", `${p.shared_houses} <small style="font-size:.5em">of ${p.houses}</small>`, "Houses with 2+ players"],
+    ["", p.max_together, "Most in one house"],
+    ["", dur(p.total_play), "Total play time"],
+  ].map(([cls, n, label]) => `<div class="kpi ${cls}">${String(n).startsWith("<b") ? n : `<b>${n}</b>`}<span>${label}</span></div>`).join("");
+
+  const chars = p.characters || [];
+  const most = Math.max(1, ...chars.map((c) => c.visits));
+  table($("#charTable"),
+    [["#", 1], ["Character"], ["Played", 1], ["Players", 1], ["Play time", 1]],
+    chars.map((c, i) => [
+      i + 1,
+      `${esc(c.char)}<div class="bar"><i style="width:${Math.round((100 * c.visits) / most)}%"></i></div>`,
+      c.visits, c.players, dur(c.play),
+    ]),
+    "Nobody has played in this window yet.");
+  if (chars.length) $("#charTable tbody tr").classList.add("top");
+
+  table($("#dailyTable"),
+    [["Day (UTC)"], ["Players", 1], ["Returning", 1], ["Visits", 1], ["Avg play", 1], ["Total play", 1]],
+    (p.daily || []).map((d) => [d.t, d.players, d.returning, d.visits, dur(d.avg_play), dur(d.total_play)]),
+    "No play recorded in this window yet.");
+  table($("#visitTable"),
+    [["Joined (UTC)"], ["House"], ["Played as"], ["Play time", 1], ["Player"]],
+    (p.recent || []).map((v) => [
+      shortTime(v.t),
+      esc(v.house) + (v.pub ? "" : " · private") + (v.houses > 1 ? ` +${v.houses - 1}` : ""),
+      esc(v.char),
+      dur(v.play) + (v.active ? ` <span class="tag now">playing</span>` : ""),
+      (v.who ? `<span class="tag ${v.n > 1 ? "back" : ""}">${v.n > 1 ? "returning · visit " + v.n : "new"}</span> ${esc(v.who)}` : `<span class="tag">untracked</span>`),
+    ]),
+    "No visits in this window yet.");
+  table($("#houseTable"),
+    [["Opened (UTC)"], ["House"], ["Players", 1], ["Together", 1], ["Open for", 1]],
+    (p.house_list || []).map((h) => [
+      shortTime(h.t),
+      esc(h.code) + (h.pub ? "" : " · private") + (h.active ? ` <span class="tag now">live</span>` : ""),
+      h.players, h.peak, dur(h.open),
+    ]),
+    "No houses in this window yet.");
 }
 
 function valOf(d) {
@@ -219,7 +330,10 @@ function render(data) {
   drawBars($("#activeHourChart"), data.hourly_active || [], "#39ff9a", { showValues: true });
   drawBars($("#hourChart"), data.by_hour || [], "#f5c542");
   drawBars($("#dayChart"), data.by_day || [], "#ff3d6e");
-  $("#foot").textContent = `Window ${data.window} · events ${data.events} · log ${fmt(data.from)} → ${fmt(data.to)} · refreshed ${fmt(data.generated_at)}`;
+  renderPlay(data.play);
+  const bk = data.play && data.play.backup;
+  $("#foot").textContent = `Window ${data.window} · events ${data.events} · log ${fmt(data.from)} → ${fmt(data.to)} · refreshed ${fmt(data.generated_at)}`
+    + (data.play && data.play.schema ? ` · play data format v${data.play.schema}` + (bk ? `, logs backed up before it went live: ${bk.name} (${bk.files} file${bk.files === 1 ? "" : "s"})` : "") : "");
 }
 
 async function load() {

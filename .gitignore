@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+# local play history (see playlog.py); never commit player data
+/data/
+# copies of the production logs pulled down for safekeeping; they hold visitor IP addresses
+/server-backups/
