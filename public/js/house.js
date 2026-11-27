@@ -383,7 +383,7 @@ function critters(c, x, y, w) {
 }
 
 const KINDS = {
-  leg: () => [], choc: () => [],
+  leg: () => [],
   bed(p) {
     const [x, y, w, h] = p.r, col = BEDS[p.c % BEDS.length];
     return [{ bb: [x - 6, y - 26, w + 12, h + 32], sortY: y + 1, draw(c) {
@@ -445,26 +445,12 @@ const KINDS = {
       ell(c, x + 92, y + 22, 8, 5, '#ff8fc0', 2);
     } }];
   },
-  teapot(p) {
-    const [x, y] = p.r, cx = x + 60, by = y + 62;
-    return [{ bb: [x - 44, y - 112, 282, 210], sortY: y + 1, fade: 1, draw(c) {
-      // chocolate couch the spout pours into
-      box(c, x + 118, y - 2, 98, 44, 20, '#5a2f17'); box(c, x + 112, y + 26, 110, 56, 22, '#7a4424');
-      ell(c, x + 167, y + 44, 40, 12, '#93582f', 0);
-      for (const dx of [124, 150, 190, 210]) box(c, x + dx, y + 70, 9, 16 + (dx % 3) * 5, 5, '#7a4424', 2);
-      // stream
-      c.strokeStyle = OUT; c.lineWidth = 15; c.lineCap = 'round'; c.beginPath(); c.moveTo(x + 162, y - 58); c.quadraticCurveTo(x + 172, y - 30, x + 168, y + 30); c.stroke();
-      c.strokeStyle = '#7a4424'; c.lineWidth = 10; c.stroke();
-      // handle, spout, body
-      c.strokeStyle = OUT; c.lineWidth = 19; c.beginPath(); c.arc(cx - 58, by - 62, 27, 0.5 * Math.PI, 1.5 * Math.PI); c.stroke();
-      c.strokeStyle = '#ff6fae'; c.lineWidth = 13; c.stroke();
-      c.beginPath(); c.moveTo(cx + 44, by - 34); c.quadraticCurveTo(cx + 80, by - 40, cx + 86, by - 112); c.lineTo(cx + 112, by - 108); c.quadraticCurveTo(cx + 104, by - 74, cx + 56, by - 78); c.closePath();
-      c.fillStyle = '#ff6fae'; c.fill(); c.strokeStyle = OUT; c.lineWidth = 2.5; c.stroke();
-      ell(c, cx, by - 58, 64, 60, '#ff6fae'); ell(c, cx - 18, by - 78, 26, 20, '#ff9cc8', 0, -0.5);
-      c.fillStyle = '#fff'; for (const [dx, dy] of [[-30, -40], [6, -30], [34, -58], [-6, -84], [26, -92], [-40, -74], [14, -8], [-22, -10]]) { c.beginPath(); c.arc(cx + dx, by + dy, 5, 0, TAU); c.fill(); }
-      c.strokeStyle = GOLD; c.lineWidth = 5; c.beginPath(); c.ellipse(cx, by - 108, 40, 8, 0, 0, Math.PI); c.stroke();
-      ell(c, cx, by - 114, 38, 11, '#ff9cc8'); ell(c, cx, by - 128, 10, 10, GOLD);
-      ell(c, cx, by - 4, 46, 9, '#d94d93', 2.5);
+  choc(p) {   // the chocolate throne couch
+    const [x, y] = p.r;
+    return [{ bb: [x - 12, y - 38, 118, 104], sortY: y - 31, fade: 1, draw(c) {
+      box(c, x - 2, y - 34, 98, 44, 20, '#5a2f17'); box(c, x - 8, y - 6, 110, 56, 22, '#7a4424');
+      ell(c, x + 47, y + 12, 40, 12, '#93582f', 0);
+      for (const [dx, h] of [[4, 21], [30, 16], [70, 21], [90, 16]]) box(c, x + dx, y + 38, 9, h, 5, '#7a4424', 2);
     } }];
   },
   basket(p) {
