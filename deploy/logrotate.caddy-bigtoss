@@ -1,0 +1,16 @@
+# Safety net: rotate if Caddy rolling is ever disabled. Never delete by age.
+/var/log/caddy/access.log {
+	daily
+	missingok
+	notifempty
+	compress
+	delaycompress
+	dateext
+	dateformat -%Y-%m-%d
+	rotate 9999
+	create 0640 caddy caddy
+	sharedscripts
+	postrotate
+		/bin/systemctl reload caddy >/dev/null 2>&1 || true
+	endscript
+}

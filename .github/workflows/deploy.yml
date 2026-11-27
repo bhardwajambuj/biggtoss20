@@ -10,8 +10,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    name: Stats data-safety tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run data-loss guards
+        run: python3 -m unittest discover -s tests -v
+
   deploy:
     name: Deploy to Oracle
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -25,3 +38,7 @@ jobs:
           script: |
             set -euo pipefail
             /usr/local/bin/bigtoss-deploy
+            # Keep the on-box deploy script in sync with the repo (never touch logs)
+            if [ -f /opt/bigtoss/deploy/bigtoss-deploy.sh ]; then
+              sudo install -m 755 /opt/bigtoss/deploy/bigtoss-deploy.sh /usr/local/bin/bigtoss-deploy
+            fi

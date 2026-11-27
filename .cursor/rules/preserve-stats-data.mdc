@@ -1,0 +1,59 @@
+---
+description: Never delete or truncate Bigg Toss visitor/stats logs on the production server
+alwaysApply: true
+---
+
+# Preserve production stats data
+
+Visitor analytics live only on the Oracle server as **append-only** Caddy access logs. **Data loss is never acceptable.** New features must be additive; never wipe historical traffic data.
+
+## Protected paths (production)
+
+- `/var/log/caddy/access.log`
+- `/var/log/caddy/access.log*` (rotated / compressed archives)
+- Any future stats DB, warehouse, or export derived from these logs
+
+## Never do
+
+- `rm`, `truncate`, `> file`, or overwrite of access logs
+- `logrotate` / Caddy `roll_*` settings that **delete** archives by age or low keep count
+- Redeploy, reinstall, or `git reset` steps that clear `/var/log/caddy/`
+- Reformatting the disk, replacing the VM, or recreating the instance without **copying logs off first**
+- Changing `bigtoss-deploy`, Caddyfile logging, or systemd units in a way that drops log history
+- “Reset stats”, “clear analytics”, or test scripts that wipe production logs
+
+```bash
+# ❌ BAD — destroys history
+sudo rm -f /var/log/caddy/access.log*
+sudo truncate -s 0 /var/log/caddy/access.log
+# Caddy roll_keep 3  /  logrotate maxage 7 with rotate that purges
+```
+
+## Always do
+
+- **Append only** — new events go to the current log file; old files stay
+- Prefer **raising** retention (`roll_keep`, `roll_keep_for`, logrotate `rotate`) over lowering it
+- Before any risky host change: **copy** logs somewhere safe (local backup, object storage, or another path), verify the copy, then proceed
+- Stats features (`/stats`, `/api/stats`, `bigtoss-stats`) must **read** logs; they must not delete or rewrite them
+- If a change might affect logging, call it out explicitly and get confirmation before touching production
+
+```bash
+# ✅ GOOD — read / backup / extend retention
+sudo bigtoss-stats 7d
+sudo cp -a /var/log/caddy /safe/backup/caddy-logs-$(date +%F)
+# increase roll_keep / rotate counts; never decrease in a way that purges files
+```
+
+## Deployments
+
+`bigtoss-deploy` may restart the game process. That is fine. It must **not** remove or empty `/var/log/caddy/`. Game state in memory can reset; **access-log history must not.**
+
+## Tests (required)
+
+Before merging or deploying, run:
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+CI runs these on every push/PR; deploy to production **needs** them to pass. If you add new deploy scripts or logging config, extend `tests/test_stats_data_safety.py` so regressions fail the build.
