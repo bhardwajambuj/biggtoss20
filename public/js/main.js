@@ -698,8 +698,7 @@ function buildHud(swapped) {
   });
   updateHud();
   if (swapped) return;
-  if (matchMedia('(pointer: coarse)').matches) toast('Left thumb moves. SLAP to slap. JUMP dodges slaps and hops onto furniture!', 4800);
-  else toast('WASD to move · F or click to slap · Space jumps (dodge slaps, hop onto beds, sofas and tables) · E to sit', 5600);
+  if (!matchMedia('(pointer: coarse)').matches) toast('WASD to move · F or click to slap · Space jumps (dodge slaps, hop onto beds, sofas and tables) · E to sit', 5600);
 }
 
 function drawMinimap() {
