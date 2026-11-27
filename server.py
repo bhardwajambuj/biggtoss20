@@ -53,7 +53,7 @@ MIME = {
     ".css": "text/css; charset=utf-8", ".json": "application/json",
     ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg",
     ".ico": "image/x-icon", ".webmanifest": "application/manifest+json",
-    ".txt": "text/plain; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8", ".xml": "application/xml; charset=utf-8",
 }
 
 # Caddy access logs (JSON lines). Override for local/dev.
@@ -980,6 +980,8 @@ def serve_static(writer, method, path, headers):
                         "Cache-Control: no-store\r\n", head)
     if path in ("/stats", "/stats/"):
         path = "/stats.html"
+    if path == "/favicon.ico":
+        path = "/favicon.svg"
     gz_ok = "gzip" in headers.get("accept-encoding", "")
     if path == "/data/world.json":
         body, ctype, key = WORLD_JSON, MIME[".json"], ("world", 0)
