@@ -56,9 +56,204 @@ MIME = {
     ".txt": "text/plain; charset=utf-8",
 }
 
+# Caddy access logs (JSON lines). Override for local/dev.
+ACCESS_LOG = os.environ.get("ACCESS_LOG", "/var/log/caddy/access.log")
+_STATS_SKIP = {"/stats", "/api/stats", "/healthz", "/favicon.ico"}
+_stats_cache = {}  # window -> (expires_at, payload)
+
 
 def now():
     return time.monotonic()
+
+
+def _wall():
+    return time.time()
+
+
+def _parse_stats_window(raw):
+    """Return earliest unix ts to include, or None for all history."""
+    if not raw or raw in ("all", "forever", "history"):
+        return None
+    units = {"s": 1, "m": 60, "h": 3600, "d": 86400, "w": 604800}
+    if len(raw) < 2 or raw[-1] not in units:
+        return _wall() - 86400
+    try:
+        return _wall() - float(raw[:-1]) * units[raw[-1]]
+    except ValueError:
+        return _wall() - 86400
+
+
+def _access_log_paths():
+    import glob
+    base = ACCESS_LOG
+    paths = sorted(glob.glob(base + "*"))
+    return [p for p in paths if os.path.isfile(p)]
+
+
+def _open_access_log(path):
+    if path.endswith(".gz"):
+        return gzip.open(path, "rt", encoding="utf-8", errors="replace")
+    return open(path, "rt", encoding="utf-8", errors="replace")
+
+
+def live_snapshot():
+    """Who is playing right now (no IPs)."""
+    houses = []
+    for h in HOUSES.values():
+        players = []
+        for e in h.ents:
+            if not e.client:
+                continue
+            players.append({
+                "char": CAST[e.i]["short"] if e.i < len(CAST) else str(e.i),
+                "nick": e.nick or "",
+                "trp": e.trp,
+            })
+        if players:
+            houses.append({
+                "code": h.code,
+                "public": bool(h.public),
+                "players": players,
+                "count": len(players),
+            })
+    houses.sort(key=lambda x: (-x["count"], x["code"]))
+    return {
+        "online": sum(1 for c in CLIENTS if c.ent),
+        "connections": len(CLIENTS),
+        "houses": len(HOUSES),
+        "active_houses": houses,
+        "as_of": int(_wall()),
+    }
+
+
+def collect_stats(window="all"):
+    """Aggregate Caddy access logs. Public payload never includes raw IPs."""
+    since = _parse_stats_window(window)
+    cache_key = window or "all"
+    hit = _stats_cache.get(cache_key)
+    if hit and hit[0] > _wall():
+        payload = dict(hit[1])
+        payload["live"] = live_snapshot()
+        return payload
+
+    pages = 0
+    games = 0
+    other = 0
+    page_ips = set()
+    game_ips = set()
+    all_ips = set()
+    by_hour = {}
+    by_hour_active = {}  # page load or game join only
+    by_day = {}
+    first_ts = last_ts = None
+    events = 0
+    paths = _access_log_paths()
+
+    for path in paths:
+        try:
+            fh = _open_access_log(path)
+        except OSError:
+            continue
+        with fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    e = json.loads(line)
+                except ValueError:
+                    continue
+                ts = e.get("ts")
+                if not isinstance(ts, (int, float)):
+                    continue
+                if since is not None and ts < since:
+                    continue
+                req = e.get("request") or {}
+                uri = (req.get("uri") or "/").split("?")[0]
+                if uri in _STATS_SKIP or uri.startswith("/apple-touch"):
+                    continue
+                status = int(e.get("status") or 0)
+                ip = (req.get("client_ip") or req.get("remote_ip") or "").split("%")[0]
+                # strip IPv6-mapped prefix if present
+                if ip.startswith("::ffff:"):
+                    ip = ip[7:]
+                events += 1
+                first_ts = ts if first_ts is None else min(first_ts, ts)
+                last_ts = ts if last_ts is None else max(last_ts, ts)
+                hour = time.strftime("%Y-%m-%d %H:00", time.gmtime(ts))
+                day = time.strftime("%Y-%m-%d", time.gmtime(ts))
+                if ip:
+                    all_ips.add(ip)
+                    by_hour.setdefault(hour, set()).add(ip)
+                    by_day.setdefault(day, set()).add(ip)
+                is_page = uri in ("/", "") and status < 400
+                is_game = uri.startswith("/ws") and status in (101, 200)
+                if is_page:
+                    pages += 1
+                    if ip:
+                        page_ips.add(ip)
+                        by_hour_active.setdefault(hour, set()).add(ip)
+                elif is_game:
+                    games += 1
+                    if ip:
+                        game_ips.add(ip)
+                        by_hour_active.setdefault(hour, set()).add(ip)
+                else:
+                    other += 1
+
+    def _fill_hours(active_map, start_ts, end_ts):
+        """Continuous hourly series with zeros for quiet hours."""
+        if start_ts is None or end_ts is None:
+            return []
+        # Align to hour boundaries (UTC)
+        t0 = int(start_ts) - (int(start_ts) % 3600)
+        t1 = int(end_ts) - (int(end_ts) % 3600)
+        if since is not None:
+            t0 = max(t0, int(since) - (int(since) % 3600))
+        out = []
+        t = t0
+        # Cap length so the chart stays readable
+        max_buckets = 72 if since is None else 24 * 31
+        while t <= t1 and len(out) < max_buckets:
+            label = time.strftime("%Y-%m-%d %H:00", time.gmtime(t))
+            out.append({"t": label, "users": len(active_map.get(label, ())), "distinct": len(active_map.get(label, ()))})
+            t += 3600
+        return out
+
+    end_bound = last_ts if last_ts is not None else _wall()
+    start_bound = first_ts if first_ts is not None else end_bound
+    if since is not None:
+        start_bound = since
+    hourly_active = _fill_hours(by_hour_active, start_bound, end_bound)
+    hour_series = [{"t": k, "distinct": len(by_hour[k])} for k in sorted(by_hour)]
+    day_series = [{"t": k, "distinct": len(by_day[k])} for k in sorted(by_day)]
+    if since is None and len(hour_series) > 72:
+        hour_series = hour_series[-72:]
+    if since is None and len(hourly_active) > 72:
+        hourly_active = hourly_active[-72:]
+
+    payload = {
+        "window": cache_key,
+        "events": events,
+        "from": int(first_ts) if first_ts else None,
+        "to": int(last_ts) if last_ts else None,
+        "generated_at": int(_wall()),
+        "pages": pages,
+        "distinct_visitors": len(page_ips),
+        "game_sessions": games,
+        "distinct_players": len(game_ips),
+        "distinct_ips": len(all_ips),
+        "other_requests": other,
+        "hourly_active": hourly_active,
+        "by_hour": hour_series,
+        "by_day": day_series,
+        "log_files": len(paths),
+        "logging_since_note": "Access logging started 2026-11-27; earlier traffic was not recorded.",
+    }
+    _stats_cache[cache_key] = (_wall() + 8, payload)
+    out = dict(payload)
+    out["live"] = live_snapshot()
+    return out
 
 
 # ------------------------------------------------------------------ entities
@@ -774,6 +969,17 @@ def serve_static(writer, method, path, headers):
         return _respond(writer, "405 Method Not Allowed")
     if path == "/healthz":
         return _respond(writer, "200 OK", b"ok", head=head)
+    if path == "/api/stats":
+        window = "all"
+        for part in (headers.get("x-bt-query") or "").split("&"):
+            if part.startswith("window="):
+                window = unquote(part.split("=", 1)[1])[:8] or "all"
+                break
+        body = json.dumps(collect_stats(window), separators=(",", ":")).encode()
+        return _respond(writer, "200 OK", body, MIME[".json"],
+                        "Cache-Control: no-store\r\n", head)
+    if path in ("/stats", "/stats/"):
+        path = "/stats.html"
     gz_ok = "gzip" in headers.get("accept-encoding", "")
     if path == "/data/world.json":
         body, ctype, key = WORLD_JSON, MIME[".json"], ("world", 0)
@@ -809,7 +1015,9 @@ async def handle(reader, writer):
                 break
             k, _, v = l.decode("latin1").partition(":")
             headers[k.strip().lower()] = v.strip()
-        path = urlsplit(target).path
+        split = urlsplit(target)
+        path = split.path
+        headers["x-bt-query"] = split.query or ""
         if path == "/ws" and headers.get("upgrade", "").lower() == "websocket":
             await ws_session(reader, writer, headers)
         else:
