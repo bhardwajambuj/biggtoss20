@@ -133,7 +133,7 @@ function connect() {
   };
 }
 function send(o) { if (wsOpen) ws.send(JSON.stringify(o)); }
-function sendJoin() { send({ t: 'join', c: cast[joined ? me : picked].id, nick: $('#nick').value, house: houseCode || urlCode || null }); }
+function sendJoin() { send({ t: 'join', c: cast[joined ? me : picked].id, house: houseCode || urlCode || null }); }
 setInterval(() => { if (!joined) send({ t: 'peek', house: urlCode || null }); }, 8000);
 
 function onMessage(m) {
@@ -334,7 +334,6 @@ function doSay(k) {
 
 // -------------------------------------------------------------------- input
 addEventListener('keydown', (ev) => {
-  if (ev.target.tagName === 'INPUT') { if (ev.code === 'Enter' && picked >= 0) $('#enter').click(); return; }
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(ev.code)) ev.preventDefault();
   if (ev.repeat) return;
   if (switching) { if (ev.code === 'Escape' || ev.code === 'KeyC') closeSwitch(); else if (ev.code === 'Enter' && picked >= 0) $('#enter').click(); return; }

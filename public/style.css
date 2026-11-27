@@ -62,8 +62,6 @@ h1 span { color: var(--pink); }
 #picked { min-width: 200px; max-width: 330px; line-height: 1.15; }
 #picked b { display: block; font: 400 24px var(--sign); letter-spacing: 1px; color: #ffe14a; }
 #picked span { font-size: 12.5px; opacity: .8; }
-#nick { width: 190px; padding: 11px 14px; border-radius: 14px; border: 3px solid var(--ink); background: var(--cream); color: var(--ink); font-weight: 700; outline: none; user-select: text; -webkit-user-select: text; }
-#nick:focus { border-color: var(--gold); }
 #enter { padding: 10px 26px 8px; border-radius: 16px; border: 3px solid var(--ink); background: var(--pink); color: #fff; font: 400 28px var(--sign); letter-spacing: 1.5px; cursor: pointer; box-shadow: 0 6px 0 var(--ink); transition: transform .08s, box-shadow .08s, filter .2s; }
 #enter:not(:disabled):hover { transform: translateY(-2px); box-shadow: 0 8px 0 var(--ink); }
 #enter:not(:disabled):active { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
@@ -71,7 +69,7 @@ h1 span { color: var(--pink); }
 #back { display: none; padding: 10px 18px 8px; border-radius: 16px; border: 3px solid var(--ink); background: var(--cream); color: var(--ink); font: 400 22px var(--sign); letter-spacing: 1.5px; cursor: pointer; box-shadow: 0 6px 0 var(--ink); }
 #back:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--ink); }
 #select.switching #back { display: block; }
-#select.switching #nick, #select.switching .fine, #select.switching #live { display: none; }
+#select.switching .fine, #select.switching #live { display: none; }
 .card.you { cursor: default; }
 .card.you .badge { background: var(--gold); color: var(--ink); }
 .fine { max-width: 760px; margin: 22px auto 0; text-align: center; font-size: 11.5px; opacity: .6; }
@@ -181,13 +179,8 @@ h1 span { color: var(--pink); }
   #picked { min-width: 0; flex: 1 1 100%; text-align: center; max-width: none; }
   #picked b { font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #picked span { display: none; }
-  /* name and button share a row when both fit; on narrow phones each takes a full row */
-  #nick { flex: 1 1 150px; width: auto; min-width: 0; padding: 9px 12px; }
   #enter { flex: 1 1 auto; font-size: 22px; padding: 9px 16px 7px; white-space: nowrap; }
   #back { font-size: 20px; padding: 9px 14px 7px; }
-}
-@media (max-width: 430px) {
-  #select { padding-bottom: 200px; }
 }
 @media (max-height: 520px) and (pointer: coarse) {
   #side #board div:nth-child(n+5) { display: none; }
