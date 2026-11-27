@@ -14,6 +14,12 @@ button, input { font: inherit; }
 #select {
   position: fixed; inset: 0; z-index: 20; overflow-y: auto; touch-action: pan-y;
   padding: 18px max(16px, env(safe-area-inset-right)) 150px max(16px, env(safe-area-inset-left));
+}
+/* The blurred backdrop lives on a pseudo-element: backdrop-filter on #select
+   itself would make it the containing block of the fixed join bar, which then
+   scrolls away with the cards instead of staying at the bottom of the screen. */
+#select::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background: radial-gradient(1200px 600px at 50% -10%, rgba(138, 79, 208, .55), transparent 70%), rgba(21, 12, 34, .86);
   backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
 }
@@ -171,10 +177,17 @@ h1 span { color: var(--pink); }
   #cards { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 9px; }
   .card b { font-size: 18px; }
   .card small { font-size: 10.5px; }
+  .join { gap: 8px 10px; padding-top: 24px; background: linear-gradient(0deg, #150c22 calc(100% - 24px), transparent); }
   #picked { min-width: 0; flex: 1 1 100%; text-align: center; max-width: none; }
+  #picked b { font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   #picked span { display: none; }
-  #nick { flex: 1; min-width: 0; }
-  #enter { font-size: 22px; padding: 9px 16px 7px; }
+  /* name and button share a row when both fit; on narrow phones each takes a full row */
+  #nick { flex: 1 1 150px; width: auto; min-width: 0; padding: 9px 12px; }
+  #enter { flex: 1 1 auto; font-size: 22px; padding: 9px 16px 7px; white-space: nowrap; }
+  #back { font-size: 20px; padding: 9px 14px 7px; }
+}
+@media (max-width: 430px) {
+  #select { padding-bottom: 200px; }
 }
 @media (max-height: 520px) and (pointer: coarse) {
   #side #board div:nth-child(n+5) { display: none; }
