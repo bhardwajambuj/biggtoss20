@@ -27,9 +27,16 @@ PORT = int(os.environ.get("PORT", "8020"))
 HOST = os.environ.get("HOST", "0.0.0.0")
 
 with open(os.path.join(ROOT, "data", "cast.json"), encoding="utf-8") as _f:
-    CAST = json.load(_f)["cast"]
+    _DATA = json.load(_f)
+CAST = _DATA["cast"]
 CAST_IDS = [c["id"] for c in CAST]
 N = len(CAST_IDS)
+# The host is not a contestant: nobody can play him, he has no health, lives
+# or TRP, and he is sent to clients next to (not inside) the contestant arrays.
+HOST_CHAR = _DATA["host"]
+HOST_I = N
+HOST_LINES = len(HOST_CHAR["quips"])
+HOST_BLOCKS = len(HOST_CHAR["block"])
 
 WORLD_JSON = json.dumps(world.as_json(), separators=(",", ":")).encode()
 
@@ -41,6 +48,7 @@ SWITCH_CD = 4.0
 HOP_T = 0.42          # seconds a bot takes to hop on/off furniture
 BOT_SPEED = 118
 CHASE_SPEED = 158
+HOST_SPEED = 92       # the host strolls, he does not hurry
 MAX_CLIENTS = 3000
 MAX_HOUSES = 400
 CODE_RE = re.compile(r"^[A-Z0-9]{3,8}$")
@@ -293,6 +301,17 @@ class Ent:
         self.want_perch = None
         self.hop = None          # (x0, y0, x1, y1, t0, getting_on)
         self.next_bop = 0.0
+        # host only
+        self.host = i == HOST_I
+        self.talk_until = 0.0
+        self.next_block = 0.0
+        self.deck = []
+        if self.host:
+            for _ in range(20):
+                if not world.in_water(self.x, self.y):
+                    break
+                self.x, self.y = world.random_point(_weighted_room())
+            self.next_say = t + random.uniform(3, 6)
 
     def grounded(self):
         """Forget any furniture-hopping state (KO, takeover, teleport)."""
@@ -313,7 +332,8 @@ class House:
     def __init__(self, code, public):
         self.code = code
         self.public = public
-        self.ents = [Ent(i) for i in range(N)]
+        self.ents = [Ent(i) for i in range(N)]     # contestants only
+        self.host = Ent(HOST_I)
         self.clients = set()
         self.seats = {}
         self.dirty = True
@@ -333,7 +353,11 @@ class House:
         p = []
         for e in self.ents:
             p += (round(e.x), round(e.y), e.f)
-        return {"t": "s", "p": p}
+        return {"t": "s", "p": p, "h": self.host_pos()}
+
+    def host_pos(self):
+        h = self.host
+        return [round(h.x), round(h.y), h.f]
 
     def humans(self):
         return sum(1 for e in self.ents if e.client)
@@ -377,7 +401,14 @@ class House:
             if d < bd:
                 best, bd = e, d
         if best is None:
-            self.cast({"t": "slap", "a": a.i, "v": -1})
+            miss = {"t": "slap", "a": a.i, "v": -1}
+            hs = self.host
+            if math.hypot(hs.x - a.x, (hs.y - a.y) * 1.5) < reach:
+                # The host is never a victim: the swing is waved away and he
+                # has something to say about it.
+                miss["h"] = 1
+                self.host_block(a, t)
+            self.cast(miss)
             return
         v = best
         self.unseat(v)
@@ -454,6 +485,7 @@ class House:
                 self.seat_effects(e, t, dt)
             if not e.client:
                 self.bot(e, t, dt)
+        self.host_bot(self.host, t, dt)
         self.cast(self.snapshot())
         if self.dirty:
             self.dirty = False
@@ -624,6 +656,74 @@ class House:
                 self.cast({"t": "jump", "i": e.i})
         if not e.path and t >= e.wait:
             e.wait = t + 1
+
+    # -- the host
+    def host_block(self, a, t):
+        """Someone swung at the host: he turns to them and answers back."""
+        hs = self.host
+        if abs(a.x - hs.x) > 2:
+            hs.f = 1 if a.x > hs.x else -1
+        hs.talk_until = max(hs.talk_until, t + 1.6)
+        if t >= hs.next_block:
+            hs.next_block = t + 2.5
+            hs.next_say = max(hs.next_say, t + 6)
+            self.cast({"t": "say", "i": HOST_I, "q": 500 + random.randrange(HOST_BLOCKS)})
+
+    def host_bot(self, e, t, dt):
+        """Stroll around the house delivering dialogues. He never sits, climbs,
+        slaps or gets slapped, so none of the contestant brain applies."""
+        if t >= e.next_say:
+            e.next_say = t + random.uniform(8, 15)
+            if not e.deck:
+                e.deck = random.sample(range(HOST_LINES), HOST_LINES)
+            e.talk_until = t + 2.6
+            # stop and say it to whoever is closest
+            near = min(self.ents, key=lambda o: (o.x - e.x) ** 2 + (o.y - e.y) ** 2)
+            if not near.ko_until and abs(near.x - e.x) > 2 and math.hypot(near.x - e.x, near.y - e.y) < 320:
+                e.f = 1 if near.x > e.x else -1
+            self.cast({"t": "say", "i": HOST_I, "q": e.deck.pop()})
+        if t < e.talk_until:
+            return
+        if e.path:
+            o = self.ents[e.target] if e.target >= 0 else None
+            if o and (o.ko_until or math.hypot(o.x - e.x, o.y - e.y) < 88):
+                e.path = []         # close enough to the player he came to see
+            else:
+                self.follow(e, dt, HOST_SPEED)
+            if not e.path:
+                e.target = -1
+                e.wait = t + random.uniform(1.5, 5)
+            return
+        if t < e.wait:
+            return
+        path = []
+        e.target = -1
+        humans = [o for o in self.ents if o.client and not o.ko_until]
+        if humans and random.random() < 0.5:
+            o = random.choice(humans)       # drop in on a player
+            path = world.find_path(e.x, e.y, o.x, o.y)
+            if path:
+                e.target = o.i
+        if not path:
+            gx, gy = world.random_point(_weighted_room())
+            path = world.find_path(e.x, e.y, gx, gy)
+        if self.wet(e.x, e.y, path):
+            path = []                       # not in this blazer
+            e.target = -1
+        e.path = path
+        if not path:
+            e.wait = t + 0.5
+
+    @staticmethod
+    def wet(x, y, path):
+        """Would walking this path from (x, y) take you through the pool?"""
+        for px, py in path:
+            n = max(1, int(math.hypot(px - x, py - y) / 12))
+            for i in range(1, n + 1):
+                if world.in_water(x + (px - x) * i / n, y + (py - y) * i / n):
+                    return True
+            x, y = px, py
+        return False
 
     def follow(self, e, dt, speed):
         step = speed * dt
@@ -841,7 +941,7 @@ class Client:
     def welcome(self):
         h, e = self.house, self.ent
         self.send_obj({"t": "welcome", "you": e.i, "house": h.code, "x": round(e.x), "y": round(e.y),
-                       "r": h.roster()["e"], "p": h.snapshot()["p"]})
+                       "r": h.roster()["e"], "p": h.snapshot()["p"], "h": h.host_pos()})
 
     def switch(self, m):
         """Become another housemate without leaving the house.

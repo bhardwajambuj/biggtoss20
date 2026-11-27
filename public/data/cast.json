@@ -12,6 +12,42 @@
     "Weekend Ka Vaar pe dekh lenge!"
   ],
   "ouch": ["Aaah!", "Bigg Boss!!", "Ye kya tha?!", "Oye!", "Thappad?!", "Mummy!", "Violence! Violence!", "Abey!"],
+  "host": {
+    "id": "salman", "name": "Salman Khan", "short": "Salman", "host": true,
+    "tag": "The host. Roams the house, drops dialogues, cannot be slapped.",
+    "skin": "#e2b48c", "h": 1.07, "w": 1.26, "neck": 5,
+    "hair": {"front": "quiff", "c": "#16110e"},
+    "beard": "stubble",
+    "face": {"jaw": 1, "lids": 1, "brows": "heavy", "nose": 1, "smirk": 1, "shadow": 0.2, "eye": "#4a2e1a"},
+    "outfit": {"k": "blazer", "c1": "#7a1230", "c2": "#17181d", "c3": "#0c0c0c", "c4": "#17171c"},
+    "acc": ["bracelet", "mic"],
+    "quips": [
+      "Ek baar jo maine commitment kar di, phir main apne aap ki bhi nahi sunta.",
+      "Swagat nahi karoge hamara?",
+      "Dil mein aata hoon, samajh mein nahi.",
+      "Mujh par ek ehsaan karna, ki mujh par koi ehsaan na karna.",
+      "Dosti ka ek usool hai: no sorry, no thank you.",
+      "Do whatever you want to do, man!",
+      "Weekend Ka Vaar mein sabka hisaab hoga.",
+      "Zindagi mein teen cheezein underestimate mat karna: I, me and myself.",
+      "Tiger abhi zinda hai.",
+      "Mere baare mein itna mat sochna.",
+      "Main sab dekh raha hoon. Sab.",
+      "Aap log karna kya chahte ho?",
+      "Itne thappad? Thoda game bhi khel lo.",
+      "Kaun jaayega ghar se bahar? Dekhte hain.",
+      "Hud hud Dabangg!",
+      "Yeh ghar hai ya akhada?"
+    ],
+    "block": [
+      "Host ko haath lagaoge? Himmat hai!",
+      "Arre! Main contestant nahi, host hoon.",
+      "Thappad se darr nahi lagta sahab.",
+      "Haath neeche. Weekend Ka Vaar pe milte hain.",
+      "Tiger ko koi nahi chhoo sakta.",
+      "Itni jaldi hai ghar se bahar jaane ki?"
+    ]
+  },
   "cast": [
     {
       "id": "kanika", "name": "Kanika Mann", "short": "Kanika",

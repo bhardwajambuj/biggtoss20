@@ -20,6 +20,7 @@ const BODY = '"Baloo 2", system-ui, sans-serif';
 const SPEED = 215, SWIM = 132, MAXHP = 5, SLAP_CD = 0.44;
 const SLAP_WORDS = ['THAPPAD!', 'CHATAK!', 'SATAAK!', 'DHISHOOM!', 'TADAAK!', 'OYE HOYE!'];
 const PUNCH_WORDS = ['PUNCH!', 'KNOCKOUT!', 'DHISHOOM!'];
+const BLOCK_WORDS = ['BLOCKED!', 'NO ENTRY!', 'BHAI!', 'NICE TRY!'];
 const CARD_BG = ['#8a4fd0', '#16a6a0', '#ff9d3c', '#ffc928', '#2f7de1', '#ff7a59', '#ffc928', '#39d98a', '#8a4fd0', '#ff8fc0', '#2f7de1', '#ff9d3c', '#16a6a0', '#ff6fae', '#ffc928', '#e3476b', '#39c6e8', '#ffb03c'];
 const SEAT_PROMPT = { sit: 'Sit', bed: 'Sleep (Bigg Boss is watching)', throne: 'Take the Teapot Throne (+TRP)', pod: 'Enter the Jeevandaan pod', conf: 'Confess to Bigg Boss', basket: 'Hop in the balloon' };
 const AMBIENT = [
@@ -55,7 +56,7 @@ let urlCode = (params.get('h') || '').toUpperCase();
 if (!/^[A-Z0-9]{3,8}$/.test(urlCode)) urlCode = '';
 
 function makeEnt(i) {
-  return { i, L: cast[i], x: 0, y: 0, tx: 0, ty: 0, f: 1, human: 0, nick: '', hp: MAXHP, lives: 2, trp: 0, seat: -1, slaps: 0,
+  return { i, L: cast[i] || data.host, x: 0, y: 0, tx: 0, ty: 0, f: 1, human: 0, nick: '', hp: MAXHP, lives: 2, trp: 0, seat: -1, slaps: 0,
     phase: i, walk: 0, moving: false, slapT: 0, hitT: 0, z: 0, vz: 0, base: 0, lift: 0, sortY: 0, cheek: 0, say: '', sayT: 0, koT: 0, swim: false, scale: 1 };
 }
 const nameOf = (e) => (e.human && e.nick ? `${e.nick} (${e.L.short})` : e.L.short);
@@ -138,13 +139,14 @@ function onMessage(m) {
   switch (m.t) {
     case 's': {
       const p = m.p;
-      for (let i = 0; i < ents.length; i++) { const e = ents[i]; e.tx = p[i * 3]; e.ty = p[i * 3 + 1]; if (i !== me) e.tf = p[i * 3 + 2]; }
+      for (let i = 0; i < cast.length; i++) { const e = ents[i]; e.tx = p[i * 3]; e.ty = p[i * 3 + 1]; if (i !== me) e.tf = p[i * 3 + 2]; }
+      if (m.h) hostAt(m.h);
       break;
     }
     case 'r': onRoster(m.e); break;
     case 'slap': onSlap(m); break;
     case 'jump': { const e = ents[m.i]; if (e && m.i !== me && e.z === 0) { e.vz = 430; sfx.jump(volAt(e.x, e.y) * 0.6); } break; }
-    case 'say': { const e = ents[m.i]; if (e) say(e, quipFor(e, m.q)); break; }
+    case 'say': { const e = ents[m.i]; if (e) say(e, quipFor(e, m.q), e.L.host ? 3.6 : undefined); break; }
     case 'bb': onBiggBoss(m); break;
     case 'tp': { const e = ents[me]; if (e) { e.x = m.x; e.y = m.y; e.koT = 0; my.kx = my.ky = 0; puff(e.x, e.y, '#fff'); sfx.pop(); } break; }
     case 'lobby': taken = m.taken || {}; refreshCards(); { const el = $('#live'); el.hidden = !m.online; el.textContent = `${m.online} playing right now`; } break;
@@ -160,6 +162,7 @@ function onWelcome(m) {
   me = m.you; houseCode = m.house; joined = true; picked = me; endSwitch();
   m.p.forEach((v, k) => { const e = ents[(k / 3) | 0]; if (k % 3 === 0) e.x = e.tx = v; else if (k % 3 === 1) e.y = e.ty = v; else e.f = e.tf = v; });
   onRoster(m.r);
+  if (m.h) hostAt(m.h, true);
   const e = ents[me]; e.x = m.x; e.y = m.y; e.seat = -1; e.koT = 0;
   if (blocked(e.x, e.y, 1e9)) unstick(e);   // only walls count: you may legitimately be up on furniture
   cam.x = e.x; cam.y = e.y - 40;
@@ -168,6 +171,16 @@ function onWelcome(m) {
   showSelect(false);
   buildHud(swapped);
   if (swapped) { puff(e.x, e.y, '#ffe14a'); sfx.life(0.7); }
+}
+
+// The host is not a contestant: the server sends him next to the cast arrays,
+// and he only joins `ents` (for drawing, labels and speech) once it does.
+function hostAt(h, snap) {
+  if (!data.host) return;
+  let e = ents[cast.length];
+  if (!e) { e = makeEnt(cast.length); ents.push(e); snap = true; }
+  e.tx = h[0]; e.ty = h[1]; e.tf = h[2];
+  if (snap) { e.x = e.tx; e.y = e.ty; e.f = e.tf; }
 }
 
 function onRoster(list) {
@@ -198,7 +211,7 @@ function onSlap(m) {
   const a = ents[m.a]; if (!a) return;
   if (!(m.a === me && a.slapT > 0)) a.slapT = 0.001;
   const vol = volAt(a.x, a.y);
-  if (m.v < 0) { sfx.whoosh(vol); return; }
+  if (m.v < 0) { sfx.whoosh(vol); if (m.h) onHostBlock(a, m.a === me, vol); return; }
   const v = ents[m.v];
   if (Math.abs(v.x - a.x) > 2) a.f = v.x > a.x ? 1 : -1;
   v.hitT = 0.8; v.cheek = 5;
@@ -218,6 +231,17 @@ function onSlap(m) {
   }
 }
 
+// A swing at the host never lands.
+function onHostBlock(a, mine, vol) {
+  const h = ents[cast.length]; if (!h) return;
+  if (Math.abs(h.x - a.x) > 2) a.f = h.x > a.x ? 1 : -1;
+  const hy = headY(h) + 34;
+  fx.push({ k: 'burst', x: (a.x + h.x) / 2, y: hy - 8, text: pick(BLOCK_WORDS), t: 0, life: 0.8, rot: (Math.random() - 0.5) * 0.4 });
+  fx.push({ k: 'ring', x: h.x, y: h.y, t: 0, life: 0.45 });
+  sfx.ding(vol * 0.8);
+  if (mine) { cam.shake = Math.max(cam.shake, 5); my.kx = -a.f * 260; toast('You cannot slap the host. Bhai is untouchable.'); }
+}
+
 function onBiggBoss(m) {
   const e = ents[m.i]; if (!e) return;
   if (m.k === 'switch') { const o = ents[m.o]; ticker(m.i === me ? `Naya roop! Ab aap ${e.L.name} ho. Jagah, lives aur TRP wahi.` : `${m.n || (o ? o.L.short : 'Koi')} ab ${e.L.short} ban gaye! Pehchaan kaun?`); return; }
@@ -230,6 +254,7 @@ function onBiggBoss(m) {
 
 function quipFor(e, q) {
   const own = e.L.quips;
+  if (e.L.host) { const list = q >= 500 ? e.L.block : own; return list[q % list.length]; }
   if (q >= 500) return own[q % own.length];
   const all = own.concat(data.generic);
   return all[q % all.length];
@@ -502,11 +527,22 @@ function headY(e) {
   return e.y - e.z - e.lift - (e.swim ? 54 : seat ? 76 : 84) * e.L.h * e.scale;
 }
 
+function drawHostTag(e, y) {
+  ctx.font = `800 13.5px ${BODY}`;
+  ctx.lineWidth = 4; ctx.strokeStyle = OUT; ctx.strokeText(e.L.short, e.x, y);
+  ctx.fillStyle = '#ffd24a'; ctx.fillText(e.L.short, e.x, y);
+  ctx.font = `800 9.5px ${BODY}`;
+  const w = ctx.measureText('HOST').width + 12;
+  ctx.beginPath(); ctx.roundRect(e.x - w / 2, y - 28, w, 13, 6.5); ctx.fillStyle = '#ffd24a'; ctx.fill(); ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = OUT; ctx.fillText('HOST', e.x, y - 18);
+}
+
 function drawLabels() {
   ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineJoin = 'round';
   for (const e of ents) {
     if (e.koT > 0 || e.x < cam.vx - 60 || e.x > cam.vx + cam.vw + 60 || e.y < cam.vy - 20 || e.y > cam.vy + cam.vh + 120) continue;
     const y = headY(e) - 6, mine = e.i === me;
+    if (e.L.host) { drawHostTag(e, y); continue; }
     const label = e.human ? (e.nick || e.L.short) : e.L.short;
     ctx.font = `${e.human ? 800 : 700} ${e.human ? 14 : 12.5}px ${BODY}`;
     ctx.lineWidth = 4; ctx.strokeStyle = OUT; ctx.strokeText(label, e.x, y);
@@ -525,7 +561,7 @@ function drawLabels() {
     for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > 150 && cur) { lines.push(cur); cur = w; } else cur = t; }
     lines.push(cur);
     const bw = Math.max(...lines.map((l) => ctx.measureText(l).width)) + 20, bh = lines.length * 16 + 12;
-    const bx = clamp(e.x, cam.vx + bw / 2 + 4, cam.vx + cam.vw - bw / 2 - 4), by = headY(e) - 24 - (e.hp < MAXHP ? 4 : 0);
+    const bx = clamp(e.x, cam.vx + bw / 2 + 4, cam.vx + cam.vw - bw / 2 - 4), by = headY(e) - 24 - (e.hp < MAXHP ? 4 : 0) - (e.L.host ? 16 : 0);
     ctx.save(); ctx.globalAlpha = a; ctx.translate(bx, by); ctx.scale(k, k);
     ctx.beginPath(); ctx.roundRect(-bw / 2, -bh, bw, bh, 11); ctx.fillStyle = '#fff'; ctx.fill(); ctx.lineWidth = 2.5; ctx.strokeStyle = OUT; ctx.stroke();
     const tx = clamp(e.x - bx, -bw / 2 + 14, bw / 2 - 14);
@@ -610,7 +646,7 @@ function updateHud() {
   $('#lives').innerHTML = HEART(e.lives >= 1) + HEART(e.lives >= 2);
   $('#hp').innerHTML = Array.from({ length: MAXHP }, (_, i) => `<i class="${i < e.hp ? '' : 'off'}"></i>`).join('');
   $('#trp').textContent = e.trp;
-  const sorted = ents.slice().sort((a, b) => b.trp - a.trp || a.i - b.i);
+  const sorted = ents.slice(0, cast.length).sort((a, b) => b.trp - a.trp || a.i - b.i);
   boardText = sorted.slice(0, 3).map((o, i) => `${i + 1}. ${o.human && o.nick ? o.nick : o.L.short}  ${o.trp}`);
   const rows = sorted.slice(0, 5); const myRank = sorted.indexOf(e);
   if (myRank >= 5) rows[4] = e;
@@ -650,7 +686,7 @@ function drawMinimap() {
   for (const r of world.rooms) { c.fillStyle = col[r.id]; c.fillRect(...r.r); }
   for (const d of world.doors) { c.fillStyle = '#c9a26b'; c.fillRect(...d.r); }
   c.fillStyle = '#39c6e8'; c.beginPath(); c.roundRect(...world.water, 60); c.fill();
-  for (const e of ents) { if (e.i === me) continue; c.fillStyle = e.human ? '#39ff9a' : '#fff'; c.strokeStyle = OUT; c.lineWidth = 8; c.beginPath(); c.arc(e.x, e.y, e.human ? 30 : 20, 0, TAU); c.fill(); c.stroke(); }
+  for (const e of ents) { if (e.i === me) continue; c.fillStyle = e.L.host ? '#ffd24a' : e.human ? '#39ff9a' : '#fff'; c.strokeStyle = OUT; c.lineWidth = 8; c.beginPath(); c.arc(e.x, e.y, e.human || e.L.host ? 30 : 20, 0, TAU); c.fill(); c.stroke(); }
   const e = ents[me]; c.fillStyle = '#ff3d6e'; c.strokeStyle = '#fff'; c.lineWidth = 10; c.beginPath(); c.arc(e.x, e.y, 34, 0, TAU); c.fill(); c.stroke();
   c.restore();
 }
@@ -760,6 +796,7 @@ async function boot() {
   world = w; data = d; cast = d.cast;
   solids = world.props.filter((p) => p.s).map((p) => ({ r: p.r, top: p.top || 0, sy: p.k === 'ctable' ? p.r[1] + p.r[3] : p.r[1] + 1 }));
   cast.forEach((L, i) => { L.seed = i * 1.7; });
+  if (data.host) data.host.seed = cast.length * 1.7;
   mini = world.doors.find((x) => x.mini).r;
   try { await Promise.race([Promise.all([document.fonts.load('30px Bangers'), document.fonts.load('700 14px "Baloo 2"')]), new Promise((r) => setTimeout(r, 2000))]); } catch (e) { /* fall back to system fonts */ }
   house = new House(world, cast);

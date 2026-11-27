@@ -125,6 +125,19 @@ function hairFront(ctx, L) {
       ctx.strokeStyle = shade(c, 0.22); ctx.lineWidth = 1.2;
       ctx.beginPath(); ctx.moveTo(-6, -13); ctx.quadraticCurveTo(-4, -18, 3, -20); ctx.moveTo(3, -12.5); ctx.quadraticCurveTo(6, -17, 11, -17); ctx.stroke();
       break;
+    case 'quiff':   // short sides, volume on top, front swept up and back
+      ctx.beginPath(); ctx.moveTo(-17, -0.5);
+      ctx.bezierCurveTo(-17.8, -13, -11.5, -21, -3.5, -21.2);
+      ctx.bezierCurveTo(0.5, -26, 10.5, -25.4, 13.8, -19);
+      ctx.bezierCurveTo(16.8, -15, 17.6, -7.5, 17, -0.5);
+      ctx.lineTo(14.9, -0.5); ctx.quadraticCurveTo(14.7, -8, 11, -10);
+      ctx.quadraticCurveTo(1, -13.4, -10, -10);
+      ctx.quadraticCurveTo(-14.7, -8, -14.9, -0.5); ctx.closePath(); blob(ctx, c);
+      ctx.strokeStyle = shade(c, 0.24); ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(-6.5, -11.4); ctx.quadraticCurveTo(-5, -18, 2.5, -22.6);
+      ctx.moveTo(0.5, -12.4); ctx.quadraticCurveTo(2.5, -18.5, 9.5, -22);
+      ctx.moveTo(7, -11.4); ctx.quadraticCurveTo(10, -16, 14.2, -17); ctx.stroke();
+      break;
     case 'flow':
       cap(19, 21, () => { ctx.lineTo(18, 7); ctx.quadraticCurveTo(15, -7, 3, -13); ctx.quadraticCurveTo(-10, -9, -18, 7); });
       ctx.strokeStyle = shade(c, 0.22); ctx.lineWidth = 1.3;
@@ -165,31 +178,50 @@ function hairFront(ctx, L) {
 }
 
 // ------------------------------------------------------------------ head
+// Broad face with a square jaw and a strong chin, instead of the round default.
+function jawPath(ctx) {
+  ctx.beginPath(); ctx.moveTo(-16, -1);
+  ctx.bezierCurveTo(-16, -22.5, 16, -22.5, 16, -1);
+  ctx.bezierCurveTo(16.7, 9, 15.8, 13.8, 9.6, 16.9);
+  ctx.quadraticCurveTo(1.2, 20, -7.4, 16.9);
+  ctx.bezierCurveTo(-14.4, 13.8, -16.7, 9, -16, -1);
+  ctx.closePath();
+}
+
 function drawHead(ctx, L, p) {
   const t = p.t || 0, skin = L.skin, acc = L.acc || [];
   const dark = shade(skin, -0.22);
+  const F = L.face || {};   // optional caricature features: jaw, lids, brows, nose, smirk, shadow
   // ears
   circ(ctx, -15.6, 1.5, 3.6, skin); circ(ctx, 15.6, 1.5, 3.6, skin);
-  ell(ctx, 0, 0, 16, 16.5, skin);
+  if (F.jaw) { jawPath(ctx); blob(ctx, skin); } else ell(ctx, 0, 0, 16, 16.5, skin);
 
   // beard layers (clipped to the face)
   const bc = L.beardc || L.hair.c;
   if (L.beard) {
     ctx.save();
-    ctx.beginPath(); ctx.ellipse(0, 0, 15.2, 15.7, 0, 0, TAU); ctx.clip();
+    if (F.jaw) jawPath(ctx); else { ctx.beginPath(); ctx.ellipse(0, 0, 15.2, 15.7, 0, 0, TAU); }
+    ctx.clip();
     if (L.beard === 'beard') {
       ctx.fillStyle = bc;
       ctx.beginPath(); ctx.moveTo(-17, 0); ctx.quadraticCurveTo(-12, 5, -7, 4.5); ctx.quadraticCurveTo(1.5, 2, 10, 4.5);
       ctx.quadraticCurveTo(14, 5, 17, 0); ctx.lineTo(17, 18); ctx.lineTo(-17, 18); ctx.closePath(); ctx.fill();
       ctx.fillStyle = skin; ctx.beginPath(); ctx.ellipse(1.5, 8.6, 4.6, 2.4, 0, 0, TAU); ctx.fill();
     } else if (L.beard.includes('stubble')) {
-      ctx.globalAlpha *= 0.2; ctx.fillStyle = bc;
-      ctx.beginPath(); ctx.moveTo(-17, 2); ctx.quadraticCurveTo(0, 5, 17, 2); ctx.lineTo(17, 18); ctx.lineTo(-17, 18); ctx.closePath(); ctx.fill();
-      ctx.globalAlpha /= 0.2;
+      const sa = F.shadow || 0.2;
+      ctx.globalAlpha *= sa; ctx.fillStyle = bc;
+      ctx.beginPath();
+      if (F.shadow) {   // five o'clock shadow: along the jaw and around the mouth, cheeks stay clear
+        ctx.moveTo(-17, 2.5); ctx.bezierCurveTo(-13, 11, -7.5, 9.5, -5, 7.2); ctx.quadraticCurveTo(1.6, 4.4, 8.2, 7.2);
+        ctx.bezierCurveTo(10.5, 9.5, 14, 11, 17, 2.5);
+      } else { ctx.moveTo(-17, 2); ctx.quadraticCurveTo(0, 5, 17, 2); }
+      ctx.lineTo(17, 22); ctx.lineTo(-17, 22); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha /= sa;
     } else if (L.beard === 'goatee') {
       ctx.fillStyle = bc; ctx.beginPath(); ctx.ellipse(1.5, 14, 5, 4.2, 0, 0, TAU); ctx.fill();
     }
     ctx.restore();
+    if (F.jaw) { jawPath(ctx); ctx.strokeStyle = OUT; ctx.lineWidth = 2; ctx.stroke(); }
   }
 
   // eyes
@@ -204,6 +236,17 @@ function drawHead(ctx, L, p) {
     } else if (sleep || blink) {
       ctx.strokeStyle = OUT; ctx.lineWidth = 1.7;
       ctx.beginPath(); ctx.arc(ex, 0, 2.6, 0.15, Math.PI - 0.15); ctx.stroke();
+    } else if (F.lids) {   // heavy, hooded lids that droop a little at the outer corners
+      const yl = ex < 0 ? -0.8 : -1.5, yr = ex < 0 ? -1.5 : -0.8;
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(ex, 0.7, 3.4, 3.1, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = F.eye || '#3a2416'; ctx.beginPath(); ctx.ellipse(ex + 0.6, 1, 2.1, 2.5, 0, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(ex + 1.3, 0.9, 0.75, 0, TAU); ctx.fill();
+      ctx.save();
+      ctx.beginPath(); ctx.moveTo(ex - 4.6, -5); ctx.lineTo(ex + 4.6, -5); ctx.lineTo(ex + 4.6, yr + (yr - yl) * 0.12); ctx.lineTo(ex - 4.6, yl - (yr - yl) * 0.12); ctx.closePath(); ctx.clip();
+      ctx.fillStyle = shade(skin, -0.06); ctx.beginPath(); ctx.ellipse(ex, 0.7, 3.8, 3.5, 0, 0, TAU); ctx.fill();
+      ctx.restore();
+      ctx.strokeStyle = OUT; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(ex - 3.8, yl); ctx.lineTo(ex + 3.8, yr); ctx.stroke();
+      ctx.strokeStyle = dark; ctx.lineWidth = 0.9; ctx.beginPath(); ctx.arc(ex, 1, 3.9, 0.5, Math.PI - 0.5); ctx.stroke();
     } else {
       ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(ex, 0.4, 3.3, 3.9, 0, 0, TAU); ctx.fill();
       ctx.fillStyle = '#20141f'; ctx.beginPath(); ctx.ellipse(ex + 0.7, 0.9, 2.2, 2.9, 0, 0, TAU); ctx.fill();
@@ -218,11 +261,20 @@ function drawHead(ctx, L, p) {
   // brows
   ctx.strokeStyle = shade(L.hair.c, -0.1); ctx.lineWidth = L.fem ? 1.4 : 2;
   const tilt = angry ? 2.2 : 0;
-  ctx.beginPath(); ctx.moveTo(-8, -5.6 - tilt); ctx.lineTo(-2.4, -5.8 + tilt);
-  ctx.moveTo(4.4, -5.8 + tilt); ctx.lineTo(10, -5.6 - tilt); ctx.stroke();
+  if (F.brows === 'heavy') {   // thick, straight and low over the eyes
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(-9.6, -3.9 - tilt); ctx.lineTo(-1.6, -4.5 + tilt);
+    ctx.moveTo(3.6, -4.5 + tilt); ctx.lineTo(11.6, -3.9 - tilt); ctx.stroke();
+  } else {
+    ctx.beginPath(); ctx.moveTo(-8, -5.6 - tilt); ctx.lineTo(-2.4, -5.8 + tilt);
+    ctx.moveTo(4.4, -5.8 + tilt); ctx.lineTo(10, -5.6 - tilt); ctx.stroke();
+  }
   // nose
   ctx.strokeStyle = dark; ctx.lineWidth = 1.3;
-  ctx.beginPath(); ctx.moveTo(2, 2.8); ctx.quadraticCurveTo(3.8, 4.6, 1.6, 5.2); ctx.stroke();
+  if (F.nose) {   // long bridge, broad tip
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(1.3, -0.6); ctx.quadraticCurveTo(5.2, 4, 4, 5.7); ctx.quadraticCurveTo(1.9, 7, -0.5, 5.6); ctx.stroke();
+  } else { ctx.beginPath(); ctx.moveTo(2, 2.8); ctx.quadraticCurveTo(3.8, 4.6, 1.6, 5.2); ctx.stroke(); }
   // blush
   if (L.fem) {
     ctx.fillStyle = 'rgba(255,110,140,0.3)';
@@ -245,9 +297,18 @@ function drawHead(ctx, L, p) {
     ell(ctx, 1.5, 9.4, 3.2, o, '#5a1a2a', 1.4);
   } else if (sleep) {
     ell(ctx, 1.5, 9.6, 1.6, 1.3, '#5a1a2a', 1.2);
+  } else if (F.smirk) {   // closed, lopsided half-smile
+    ctx.strokeStyle = '#6a2a24'; ctx.lineWidth = 1.6;
+    ctx.beginPath(); ctx.moveTo(-3, 10.2); ctx.quadraticCurveTo(1.8, 12, 6.2, 9); ctx.stroke();
+    ctx.strokeStyle = dark; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(6.9, 7.9); ctx.quadraticCurveTo(8, 9.1, 7.1, 10.4); ctx.stroke();
   } else {
     ctx.strokeStyle = lip; ctx.lineWidth = L.fem ? 2 : 1.7;
     ctx.beginPath(); ctx.moveTo(-2.4, 8.4); ctx.quadraticCurveTo(1.5, 12.4, 5.4, 8.4); ctx.stroke();
+  }
+  if (F.jaw && !hit) {   // lower lip shadow and chin
+    ctx.strokeStyle = dark; ctx.lineWidth = 1.1;
+    ctx.beginPath(); ctx.moveTo(-0.4, 14.3); ctx.quadraticCurveTo(1.6, 15.2, 3.6, 14.3); ctx.stroke();
   }
   // the famous red hand print
   if (p.cheek > 0) {
@@ -466,13 +527,24 @@ export function drawAvatar(ctx, L, p = {}) {
     limb(ctx, ax, sY, hx, hy, aw, armCol);
     if (sleeve === 'short') limb(ctx, lerp(ax, hx, 0.5), lerp(sY, hy, 0.5), hx, hy, aw - 1.2, skin);
     if (kind === 'track') { ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(ax, sY); ctx.lineTo(hx, hy); ctx.stroke(); }
+    if (s > 0 && acc.includes('bracelet')) {   // silver chain with a blue stone on the right wrist
+      const bx = lerp(ax, hx, 0.8), by = lerp(sY, hy, 0.8);
+      circ(ctx, bx, by, aw * 0.56, '#d9dde3', 1.2); circ(ctx, bx, by, 1.5, '#2fc4d6', 0);
+    }
     hand(hx, hy, big, ang);
   };
   const swing = Math.sin(ph) * 3.4 * walk;
   let lx = -(sw + 3.5), ly = -3 + swing, rx = sw + 3.5, ry = -3 - swing;
   if (sit) { lx = -(sw - 2); ly = -3; rx = sw - 2; ry = -3; }
   if (air || p.swim) { const w = p.swim ? Math.sin(t * 7) * 5 : 0; lx = -(sw + 8); ly = -33 + w; rx = sw + 8; ry = -33 - w; }
-  arm(-1, lx, ly);
+  if (acc.includes('mic') && !sit && !air && !p.swim) {   // the host carries his mic at chest height
+    lx = -(sw - 7); ly = -8 + swing * 0.3;
+    arm(-1, lx, ly);
+    ctx.strokeStyle = '#2a2c33'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(lx, ly + 1.5); ctx.lineTo(lx + 2.2, ly - 7.5); ctx.stroke();
+    circ(ctx, lx, ly, 3.7, skin, 1.8);   // fist wraps the handle
+    circ(ctx, lx + 2.9, ly - 10.4, 3.9, '#dfe3ea', 1.5);
+    ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(lx - 0.4, ly - 10.4); ctx.lineTo(lx + 6.2, ly - 10.4); ctx.stroke();
+  } else arm(-1, lx, ly);
   if (slap > 0) {
     const ax = sw - 1.5;
     if (slap < 0.25) {
@@ -487,7 +559,8 @@ export function drawAvatar(ctx, L, p = {}) {
   } else arm(1, rx, ry);
 
   // --- head
-  ctx.fillStyle = skin; ctx.fillRect(-3.4, top - 4, 6.8, 6);
+  const nk = L.neck || 3.4;
+  ctx.fillStyle = skin; ctx.fillRect(-nk, top - 4, nk * 2, 6);
   ctx.translate(0, -42);
   if (walk) ctx.rotate(Math.sin(ph) * 0.035 * walk);
   drawHead(ctx, L, p);
